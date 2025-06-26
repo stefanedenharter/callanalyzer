@@ -50,17 +50,29 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Convert time
+            # Ensure callingPartyNumber is string
+            df_all['callingPartyNumber'] = df_all['callingPartyNumber'].astype(str)
+
+            # Filter only valid extensions
+            df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
+
+            # Replace User ID with mapped name
+            df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
+
+            # Convert date column
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Filter only relevant extensions
-            if 'callingPartyNumber' in df_all.columns:
-                df_all = df_all[df_all['callingPartyNumber'].astype(str).isin(valid_extensions)]
-
-            # Replace user ID with mapped name
-            df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].astype(str).map(extension_name_map)
+            # Rename columns for clarity
+            column_renames = {
+                'callingPartyUnicodeLoginUserID': 'User',
+                'callingPartyNumber': 'Extension',
+                'finalCalledPartyPattern': 'Call Type',
+                'dateTimeOrigination': 'Date',
+                'duration': 'Duration (s)'
+            }
+            df_all = df_all.rename(columns=column_renames)
 
             st.session_state["df_all"] = df_all
         else:
@@ -75,17 +87,17 @@ if "df_all" in st.session_state:
     st.subheader("📋 Raw Call Records")
 
     # Filters
-    user_ids = df_all['callingPartyUnicodeLoginUserID'].dropna().unique().tolist()
-    call_types = df_all['finalCalledPartyPattern'].dropna().unique().tolist()
+    user_ids = df_all['User'].dropna().unique().tolist()
+    call_types = df_all['Call Type'].dropna().unique().tolist()
 
-    selected_user = st.selectbox("Filter by User ID", ["All"] + sorted(user_ids))
+    selected_user = st.selectbox("Filter by User", ["All"] + sorted(user_ids))
     selected_type = st.selectbox("Filter by Call Type", ["All"] + sorted(call_types))
 
     df_filtered = df_all.copy()
     if selected_user != "All":
-        df_filtered = df_filtered[df_filtered['callingPartyUnicodeLoginUserID'] == selected_user]
+        df_filtered = df_filtered[df_filtered['User'] == selected_user]
     if selected_type != "All":
-        df_filtered = df_filtered[df_filtered['finalCalledPartyPattern'] == selected_type]
+        df_filtered = df_filtered[df_filtered['Call Type'] == selected_type]
 
     st.dataframe(df_filtered)
 
