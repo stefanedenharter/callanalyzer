@@ -148,11 +148,12 @@ if "df_all" in st.session_state:
 
         # Chart 2: Total Calls by User (Unfiltered)
         st.subheader("📊 Total Call Volume by User (Unfiltered)")
+        all_usernames = list(extension_name_map.values())
         grouped_users = (
             df_all.groupby(['User', 'Call Category'])
             .size()
             .unstack(fill_value=0)
-            .reindex(columns=call_order, fill_value=0)
+            .reindex(index=all_usernames, columns=call_order, fill_value=0)
         )
         grouped_users['Total'] = grouped_users.sum(axis=1)
         grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='Total')
