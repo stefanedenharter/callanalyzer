@@ -35,7 +35,6 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-# Analyze button and store result in session state
 if st.button("Analyze"):
     if uploaded_files:
         all_data = []
@@ -50,21 +49,24 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Ensure callingPartyNumber is string
-            df_all['callingPartyNumber'] = df_all['callingPartyNumber'].astype(str)
+            # DEBUG: Show column names for inspection
+            st.write("📌 Columns detected in report:")
+            st.write(df_all.columns.tolist())
 
-            # Filter only valid extensions
-            df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
+            # Check if column 'callingPartyNumber' exists
+            if 'callingPartyNumber' in df_all.columns:
+                df_all['callingPartyNumber'] = df_all['callingPartyNumber'].astype(str)
+                df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
+                df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
+            else:
+                st.warning("Column 'callingPartyNumber' not found. Please update filtering column.")
 
-            # Replace User ID with mapped name
-            df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
-
-            # Convert date column
+            # Convert datetime
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Rename columns for clarity
+            # Rename columns
             column_renames = {
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -80,7 +82,7 @@ if st.button("Analyze"):
     else:
         st.warning("Please upload at least one HTML file to proceed.")
 
-# Use session state to persist data and enable interactivity
+# Show filters and charts if data is available
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
