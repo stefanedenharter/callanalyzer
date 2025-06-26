@@ -49,17 +49,22 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # DEBUG: Show column names for inspection
+            # DEBUG: Show columns
             st.write("📌 Columns detected in report:")
             st.write(df_all.columns.tolist())
 
-            # Check if column 'callingPartyNumber' exists
+            # Clean and filter extensions
             if 'callingPartyNumber' in df_all.columns:
-                df_all['callingPartyNumber'] = df_all['callingPartyNumber'].astype(str)
+                df_all['callingPartyNumber'] = (
+                    df_all['callingPartyNumber']
+                    .astype(str)
+                    .str.strip()
+                    .str.extract(r'(\d{4})')[0]  # get 4-digit numbers only
+                )
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
             else:
-                st.warning("Column 'callingPartyNumber' not found. Please update filtering column.")
+                st.warning("Column 'callingPartyNumber' not found.")
 
             # Convert datetime
             if 'dateTimeOrigination' in df_all.columns:
@@ -82,13 +87,12 @@ if st.button("Analyze"):
     else:
         st.warning("Please upload at least one HTML file to proceed.")
 
-# Show filters and charts if data is available
+# UI After Analyze
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
     st.subheader("📋 Raw Call Records")
 
-    # Filters
     user_ids = df_all['User'].dropna().unique().tolist()
     call_types = df_all['Call Type'].dropna().unique().tolist()
 
@@ -106,7 +110,7 @@ if "df_all" in st.session_state:
     else:
         st.dataframe(df_filtered)
 
-        # Bar chart
+        # Chart
         st.subheader("📊 Monthly Call Volume")
         if 'Month' in df_filtered.columns:
             call_counts = df_filtered['Month'].value_counts().sort_index()
