@@ -8,7 +8,7 @@ import io
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
-        match = re.search(r'gk_fileData\\s*=\\s*{.*?:(?P<q>["\\'])(?P<data>.*?)(?P=q)};', text, re.DOTALL)
+        match = re.search(r'gk_fileData\s*=\s*{.*?:(?P<q>["\'])(?P<data>.*?)(?P=q)};', text, re.DOTALL)
         if not match:
             return pd.DataFrame()
         csv_data = match.group("data").encode('utf-8').decode('unicode_escape')
