@@ -12,7 +12,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# Function to extract embedded CSV data from HTML content
+# Function to extract embedded CSV data from HTML
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -26,7 +26,7 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# Function to classify dialed number pattern into call type category
+# Function to classify call type
 def classify_call_type(value):
     if pd.isna(value):
         return "Unknown"
@@ -40,7 +40,7 @@ def classify_call_type(value):
     else:
         return "Other External"
 
-# Streamlit UI
+# UI
 st.title("📞 Phone Call Report Analyzer")
 
 uploaded_files = st.file_uploader(
@@ -63,7 +63,7 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Clean extension field and filter only valid extensions
+            # Clean extension field
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
@@ -76,18 +76,18 @@ if st.button("Analyze"):
             else:
                 st.warning("Column 'callingPartyNumber' not found.")
 
-            # Parse datetime
+            # Convert datetime
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Classify call types
+            # Call type classification
             if 'finalCalledPartyPattern' in df_all.columns:
                 df_all['Call Category'] = df_all['finalCalledPartyPattern'].apply(classify_call_type)
             else:
                 df_all['Call Category'] = "Unknown"
 
-            # Rename columns for clarity
+            # Rename columns
             column_renames = {
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -97,14 +97,13 @@ if st.button("Analyze"):
             }
             df_all = df_all.rename(columns=column_renames)
 
-            # Store in session
             st.session_state["df_all"] = df_all
         else:
             st.warning("No valid call data found in uploaded files.")
     else:
         st.warning("Please upload at least one HTML file to proceed.")
 
-# Show UI if data loaded
+# Display results
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
@@ -127,7 +126,8 @@ if "df_all" in st.session_state:
     else:
         st.dataframe(df_filtered)
 
-        st.subheader("📊 Monthly Call Volume by Call Type")
+        # Chart 1: Monthly Call Volume by Call Type
+        st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
         if 'Month' in df_filtered.columns:
             call_order = ['International', 'Other External', 'Mobile']
             grouped = (
@@ -137,12 +137,31 @@ if "df_all" in st.session_state:
                 .reindex(columns=call_order, fill_value=0)
                 .sort_index()
             )
+            fig1, ax1 = plt.subplots()
+            grouped.plot(kind='bar', stacked=True, ax=ax1)
+            ax1.set_ylabel("Number of Calls")
+            ax1.set_xlabel("Month")
+            ax1.set_title("Calls per Month by Call Type")
+            ax1.legend(title="Call Type")
+            st.pyplot(fig1)
 
-            fig, ax = plt.subplots()
-            grouped.plot(kind='bar', stacked=True, ax=ax)
+        # Chart 2: Total Call Volume by User (Unfiltered)
+        st.subheader("📊 Total Call Volume by User (Unfiltered)")
+        call_order = ['International', 'Other External', 'Mobile']
+        grouped_users = (
+            df_all.groupby(['User', 'Call Category'])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(columns=call_order, fill_value=0)
+        )
+        # Sort by total calls
+        grouped_users['Total'] = grouped_users.sum(axis=1)
+        grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='Total')
 
-            ax.set_ylabel("Number of Calls")
-            ax.set_xlabel("Month")
-            ax.set_title("Calls per Month by Call Type")
-            ax.legend(title="Call Type")
-            st.pyplot(fig)
+        fig2, ax2 = plt.subplots()
+        grouped_users.plot(kind='bar', stacked=True, ax=ax2)
+        ax2.set_ylabel("Number of Calls")
+        ax2.set_xlabel("User")
+        ax2.set_title("Total Calls by User (All Files)")
+        ax2.legend(title="Call Type")
+        st.pyplot(fig2)
