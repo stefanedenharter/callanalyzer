@@ -12,7 +12,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# Function to extract CSV data from HTML content
+# Function to extract embedded CSV data from HTML content
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -26,7 +26,21 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# UI
+# Function to classify dialed number pattern into call type category
+def classify_call_type(value):
+    if pd.isna(value):
+        return "Unknown"
+    val = str(value).strip()
+    if val.startswith('+') or val.startswith('900448'):
+        return "International"
+    elif re.fullmatch(r'\d{7}', val):
+        return "Other External"
+    elif re.match(r'^(7|8|9)\d{6,}', val):
+        return "Mobile"
+    else:
+        return "Other External"
+
+# Streamlit UI
 st.title("📞 Phone Call Report Analyzer")
 
 uploaded_files = st.file_uploader(
@@ -49,48 +63,55 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Clean and filter extensions
+            # Clean extension field and filter only valid extensions
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
                     .astype(str)
                     .str.strip()
-                    .str.extract(r'(\d{4})')[0]  # extract only 4-digit numbers
+                    .str.extract(r'(\d{4})')[0]
                 )
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
             else:
                 st.warning("Column 'callingPartyNumber' not found.")
 
-            # Convert datetime
+            # Parse datetime
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Rename columns
+            # Classify call types
+            if 'finalCalledPartyPattern' in df_all.columns:
+                df_all['Call Category'] = df_all['finalCalledPartyPattern'].apply(classify_call_type)
+            else:
+                df_all['Call Category'] = "Unknown"
+
+            # Rename columns for clarity
             column_renames = {
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
-                'finalCalledPartyPattern': 'Call Type',
+                'finalCalledPartyPattern': 'Dial Pattern',
                 'dateTimeOrigination': 'Date',
                 'duration': 'Duration (s)'
             }
             df_all = df_all.rename(columns=column_renames)
 
+            # Store in session
             st.session_state["df_all"] = df_all
         else:
             st.warning("No valid call data found in uploaded files.")
     else:
         st.warning("Please upload at least one HTML file to proceed.")
 
-# UI After Analyze
+# Show UI if data loaded
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
     st.subheader("📋 Raw Call Records")
 
     user_ids = df_all['User'].dropna().unique().tolist()
-    call_types = df_all['Call Type'].dropna().unique().tolist()
+    call_types = df_all['Call Category'].dropna().unique().tolist()
 
     selected_user = st.selectbox("Filter by User", ["All"] + sorted(user_ids))
     selected_type = st.selectbox("Filter by Call Type", ["All"] + sorted(call_types))
@@ -99,18 +120,23 @@ if "df_all" in st.session_state:
     if selected_user != "All":
         df_filtered = df_filtered[df_filtered['User'] == selected_user]
     if selected_type != "All":
-        df_filtered = df_filtered[df_filtered['Call Type'] == selected_type]
+        df_filtered = df_filtered[df_filtered['Call Category'] == selected_type]
 
     if df_filtered.empty:
         st.info("No call records match the selected filters.")
     else:
         st.dataframe(df_filtered)
 
-        # Chart
         st.subheader("📊 Monthly Call Volume by Call Type")
         if 'Month' in df_filtered.columns:
-            grouped = df_filtered.groupby(['Month', 'Call Type']).size().unstack(fill_value=0)
-            grouped = grouped.sort_index()
+            call_order = ['International', 'Other External', 'Mobile']
+            grouped = (
+                df_filtered.groupby(['Month', 'Call Category'])
+                .size()
+                .unstack(fill_value=0)
+                .reindex(columns=call_order, fill_value=0)
+                .sort_index()
+            )
 
             fig, ax = plt.subplots()
             grouped.plot(kind='bar', stacked=True, ax=ax)
