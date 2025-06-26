@@ -99,15 +99,21 @@ if "df_all" in st.session_state:
     if selected_type != "All":
         df_filtered = df_filtered[df_filtered['Call Type'] == selected_type]
 
-    st.dataframe(df_filtered)
+    if df_filtered.empty:
+        st.info("No call records match the selected filters.")
+    else:
+        st.dataframe(df_filtered)
 
-    # Bar chart
-    st.subheader("📊 Monthly Call Volume")
-    if 'Month' in df_filtered.columns:
-        call_counts = df_filtered['Month'].value_counts().sort_index()
-        fig, ax = plt.subplots()
-        call_counts.plot(kind='bar', ax=ax)
-        ax.set_ylabel("Number of Calls")
-        ax.set_xlabel("Month")
-        ax.set_title("Calls per Month")
-        st.pyplot(fig)
+        # Bar chart
+        st.subheader("📊 Monthly Call Volume")
+        if 'Month' in df_filtered.columns:
+            call_counts = df_filtered['Month'].value_counts().sort_index()
+            fig, ax = plt.subplots()
+            if not call_counts.empty:
+                call_counts.plot(kind='bar', ax=ax)
+                ax.set_ylabel("Number of Calls")
+                ax.set_xlabel("Month")
+                ax.set_title("Calls per Month")
+                st.pyplot(fig)
+            else:
+                st.info("No data available for chart.")
