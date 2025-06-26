@@ -18,8 +18,9 @@ def extract_csv_from_html(file_path):
 # Streamlit UI
 st.title("📞 Phone Call Report Analyzer")
 
-# Folder selection
-folder_path = st.text_input("Enter path to folder with HTML files:")
+# Default path for local file access (only works locally)
+default_path = "C:/Users/sedenharter/Downloads/Call Reports"
+folder_path = st.text_input("Enter path to folder with HTML files:", value=default_path)
 
 if folder_path and os.path.isdir(folder_path):
     all_data = []
