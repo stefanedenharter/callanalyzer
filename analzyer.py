@@ -49,17 +49,13 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # DEBUG: Show columns
-            st.write("📌 Columns detected in report:")
-            st.write(df_all.columns.tolist())
-
             # Clean and filter extensions
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
                     .astype(str)
                     .str.strip()
-                    .str.extract(r'(\d{4})')[0]  # get 4-digit numbers only
+                    .str.extract(r'(\d{4})')[0]  # extract only 4-digit numbers
                 )
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
@@ -111,15 +107,16 @@ if "df_all" in st.session_state:
         st.dataframe(df_filtered)
 
         # Chart
-        st.subheader("📊 Monthly Call Volume")
+        st.subheader("📊 Monthly Call Volume by Call Type")
         if 'Month' in df_filtered.columns:
-            call_counts = df_filtered['Month'].value_counts().sort_index()
+            grouped = df_filtered.groupby(['Month', 'Call Type']).size().unstack(fill_value=0)
+            grouped = grouped.sort_index()
+
             fig, ax = plt.subplots()
-            if not call_counts.empty:
-                call_counts.plot(kind='bar', ax=ax)
-                ax.set_ylabel("Number of Calls")
-                ax.set_xlabel("Month")
-                ax.set_title("Calls per Month")
-                st.pyplot(fig)
-            else:
-                st.info("No data available for chart.")
+            grouped.plot(kind='bar', stacked=True, ax=ax)
+
+            ax.set_ylabel("Number of Calls")
+            ax.set_xlabel("Month")
+            ax.set_title("Calls per Month by Call Type")
+            ax.legend(title="Call Type")
+            st.pyplot(fig)
