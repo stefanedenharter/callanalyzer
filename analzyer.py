@@ -4,6 +4,14 @@ import re
 import matplotlib.pyplot as plt
 import io
 
+# Extension-to-Name mapping
+extension_name_map = {
+    '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
+    '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
+    '7721': 'KS', '7787': 'DK', '7776': 'DH', '7779': 'FM'
+}
+valid_extensions = set(extension_name_map.keys())
+
 # Function to extract CSV data from HTML content
 def extract_csv_from_html_bytes(file_bytes):
     try:
@@ -42,9 +50,17 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
+            # Convert time
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
+
+            # Filter only relevant extensions
+            if 'callingPartyNumber' in df_all.columns:
+                df_all = df_all[df_all['callingPartyNumber'].astype(str).isin(valid_extensions)]
+
+            # Replace user ID with mapped name
+            df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].astype(str).map(extension_name_map)
 
             st.session_state["df_all"] = df_all
         else:
