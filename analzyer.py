@@ -1,4 +1,4 @@
-# Call Analyzer v1.6.1
+# Call Analyzer v1.6.2
 # This Streamlit app processes internal-to-external call reports
 # Classification logic is based on 'finalCalledPartyPattern' since 'Call Type' column does not exist
 
@@ -12,7 +12,7 @@ from datetime import datetime
 from io import StringIO
 
 st.set_page_config(layout="wide")
-st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.1</b></div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.2</b></div>", unsafe_allow_html=True)
 
 # --- Function to classify call category from dial pattern ---
 def classify_call_category(pattern):
