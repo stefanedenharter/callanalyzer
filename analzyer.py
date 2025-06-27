@@ -1,4 +1,4 @@
-# Call Analyzer v1.6.2
+# Call Analyzer v1.6.3
 # This Streamlit app processes internal-to-external call reports
 # Classification logic is based on 'finalCalledPartyPattern' since 'Call Type' column does not exist
 
@@ -12,7 +12,7 @@ from datetime import datetime
 from io import StringIO
 
 st.set_page_config(layout="wide")
-st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.2</b></div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.3</b></div>", unsafe_allow_html=True)
 
 # --- Function to classify call category from dial pattern ---
 def classify_call_category(pattern):
@@ -47,12 +47,19 @@ if analyze and uploaded_files:
 
     for uploaded_file in uploaded_files:
         text = uploaded_file.read().decode("utf-8")
-        match = re.search(r'gk_fileData\\s*=\\s*{.*?:(?P<q>["\'])((?P<data>.*?))(?P=q)};', text, re.DOTALL)
+
+        # Updated flexible regex to extract gk_fileData
+        match = re.search(r'gk_fileData\s*=\s*{[^}]*?["\'](?P<filename>[^"\']+)["\']\s*:\s*["\'](?P<data>.*)["\']\s*}', text, re.DOTALL)
         if match:
             csv_text = match.group("data").replace('\\r\\n', '\n').replace('\\"', '"')
-            df = pd.read_csv(StringIO(csv_text))
-            df['source_file'] = uploaded_file.name
-            df_all = pd.concat([df_all, df], ignore_index=True)
+            try:
+                df = pd.read_csv(StringIO(csv_text))
+                df['source_file'] = uploaded_file.name
+                df_all = pd.concat([df_all, df], ignore_index=True)
+            except Exception as e:
+                st.warning(f"Failed to parse CSV from {uploaded_file.name}: {e}")
+        else:
+            st.warning(f"No embedded CSV data found in {uploaded_file.name}.")
 
     # --- Standardize column names ---
     df_all.columns = [col.strip() for col in df_all.columns]
