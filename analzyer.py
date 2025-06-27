@@ -24,7 +24,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.5.0</div>
+    <div class="version-badge">🔖 Version 1.5.1</div>
     """,
     unsafe_allow_html=True
 )
@@ -115,7 +115,6 @@ if st.button("Analyze"):
             else:
                 df_all['Call Category'] = "Unknown"
 
-            # Rename columns
             df_all = df_all.rename(columns={
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -179,7 +178,7 @@ if "df_all" in st.session_state:
             ax1.set_ylabel("Calls")
             ax1.set_xlabel("Month")
             ax1.set_title("Calls by Month")
-            ax1.legend(title="Call Type")
+            ax1.legend(title="Call Type", fontsize="small", title_fontsize="small")
             st.pyplot(fig1)
 
         # --- Chart 1.5: Weekly call distribution ---
@@ -200,7 +199,7 @@ if "df_all" in st.session_state:
             ax3.set_ylabel("Calls")
             ax3.set_xlabel("Weekday")
             ax3.set_title("Calls by Weekday")
-            ax3.legend(title="Call Type")
+            ax3.legend(title="Call Type", fontsize="small", title_fontsize="small")
             st.pyplot(fig3)
 
         # --- Chart 2: Total by user ---
@@ -221,5 +220,5 @@ if "df_all" in st.session_state:
         ax2.set_ylabel("Calls")
         ax2.set_xlabel("User")
         ax2.set_title("Total Calls by User")
-        ax2.legend(title="Call Type")
+        ax2.legend(title="Call Type", fontsize="small", title_fontsize="small")
         st.pyplot(fig2)
