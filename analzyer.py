@@ -143,6 +143,7 @@ if "df_all" in st.session_state:
         ax1.legend(title="Call Type")
         st.pyplot(fig1)
 
+    
         # Chart 2: Total Calls by User (Unfiltered)
         st.subheader("📊 Total Call Volume by User (Unfiltered)")
         all_usernames = list(extension_name_map.values())
