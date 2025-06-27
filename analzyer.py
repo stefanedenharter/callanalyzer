@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import io
 
-# Extension-to-Name mapping
+# Extension-to-name mapping
 extension_name_map = {
     '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
     '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
@@ -13,7 +13,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# Extract embedded CSV from HTML
+# Function to extract embedded CSV from HTML
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -26,7 +26,7 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# Improved Call Type classification
+# Improved call type classification
 def classify_call_type_improved(val):
     if pd.isna(val):
         return "Unknown"
