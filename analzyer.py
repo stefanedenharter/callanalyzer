@@ -135,7 +135,7 @@ if analyze and uploaded_files:
         .size()
         .unstack(fill_value=0)
         .reindex(index=weekday_order)
-        .reindex(columns=call_order, fill_value=0)
+        .reindex(columns=call_order, fill_value=0) 
     )
 
     st.subheader("📊 Weekly Call Volume by Call Type (Filtered)")
