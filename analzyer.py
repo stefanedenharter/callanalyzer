@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import io
 
-# Title and version badge
+# --- UI: Page title and version badge ---
 st.set_page_config(page_title="Call Report Analyzer", layout="wide")
 st.title("📞 Phone Call Report Analyzer")
 
@@ -24,12 +24,12 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.2.0</div>
+    <div class="version-badge">🔖 Version 1.3.0</div>
     """,
     unsafe_allow_html=True
 )
 
-# Extension mapping
+# --- Extension to user mapping ---
 extension_name_map = {
     '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
     '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
@@ -37,7 +37,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# Extract CSV from HTML bytes
+# --- CSV extraction logic ---
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -50,29 +50,28 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# Improved call type classifier
-def classify_call_type_improved(val):
+# --- Literal call type classifier ---
+def classify_call_type_from_text(val):
     if pd.isna(val):
         return "Unknown"
     val = str(val).strip().lower()
-    if val in ['mobile', 'international', 'other external']:
-        return val.title()
-    if val.startswith('+') or val.startswith('900448'):
-        return "International"
-    elif re.fullmatch(r'\d{7}', val):
-        return "Other External"
-    elif re.match(r'^(7|8|9)\d{6,}', val):
+    if val == "mobile":
         return "Mobile"
+    elif val == "international":
+        return "International"
+    elif val == "other external":
+        return "Other External"
     else:
         return "Other External"
 
-# File upload
+# --- Upload widget ---
 uploaded_files = st.file_uploader(
     "Upload one or more HTML call report files:",
     type="html",
     accept_multiple_files=True
 )
 
+# --- Main parser trigger ---
 if st.button("Analyze"):
     if uploaded_files:
         all_data = []
@@ -87,6 +86,7 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
+            # Filter for valid extensions and rename users
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
@@ -97,35 +97,25 @@ if st.button("Analyze"):
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
 
+            # Timestamps
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(
                     df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            if 'finalCalledPartyPattern' in df_all.columns:
-                df_all['Call Category'] = df_all['finalCalledPartyPattern'].apply(classify_call_type_improved)
+            # Final call type assignment from literal column
+            if 'Call Type' in df_all.columns:
+                df_all['Call Category'] = df_all['Call Type'].apply(classify_call_type_from_text)
             else:
                 df_all['Call Category'] = "Unknown"
 
             # Rename columns
-            column_renames = {
+            df_all = df_all.rename(columns={
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
                 'finalCalledPartyPattern': 'Dial Pattern',
-                'dateTimeOrigination': 'Date',
-                'duration': 'Duration (s)'
-            }
-            df_all = df_all.rename(columns=column_renames)
-
-            # ✅ Debug: confirm presence of 'Mobile' label
-            if 'Dial Pattern' in df_all.columns and 'Call Category' in df_all.columns:
-                if 'mobile' in df_all['Dial Pattern'].astype(str).str.lower().values:
-                    st.info("✅ Found literal 'Mobile' entry in Dial Pattern column.")
-                else:
-                    st.warning("⚠️ No literal 'Mobile' entry found in Dial Pattern column.")
-
-                st.write("🔍 Sample Dial Patterns:")
-                st.write(df_all['Dial Pattern'].dropna().unique()[:10])
+                'dateTimeOrigination': 'Date'
+            })
 
             st.session_state["df_all"] = df_all
         else:
@@ -133,7 +123,7 @@ if st.button("Analyze"):
     else:
         st.warning("Please upload at least one HTML file.")
 
-# Main interface
+# --- Main view if data is loaded ---
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
@@ -158,7 +148,7 @@ if "df_all" in st.session_state:
 
         call_order = ['International', 'Other External', 'Mobile']
 
-        # Chart 1: Monthly
+        # --- Chart 1: Monthly call breakdown ---
         st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
         grouped = (
             df_filtered.groupby(['Month', 'Call Category'])
@@ -176,8 +166,8 @@ if "df_all" in st.session_state:
         ax1.legend(title="Call Type")
         st.pyplot(fig1)
 
-        # Chart 2: User totals
-        st.subheader("📊 Total Call Volume by User (Unfiltered)")
+        # --- Chart 2: Total by User (Unfiltered) ---
+        st.subheader("📊 Total Call Volume by User (All Data)")
         all_usernames = list(extension_name_map.values())
         grouped_users = (
             df_all.groupby(['User', 'Call Category'])
