@@ -33,7 +33,8 @@ st.markdown(
 extension_name_map = {
     '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
     '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
-    '7721': 'KS', '7787': 'DK', '7776': 'DH', '7779': 'FM'
+    '7721': 'KS', '7787': 'DK', '7776': 'DH', '7779': 'FM',
+    "7784": "MV"
 }
 valid_extensions = set(extension_name_map.keys())
 
