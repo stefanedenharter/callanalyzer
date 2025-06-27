@@ -24,7 +24,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.3.1</div>
+    <div class="version-badge">🔖 Version 1.4.0</div>
     """,
     unsafe_allow_html=True
 )
@@ -94,7 +94,6 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Filter users and map names
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
@@ -105,13 +104,11 @@ if st.button("Analyze"):
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
 
-            # Date formatting
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(
                     df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Classify Call Category using Dial Pattern
             pattern_col = 'finalCalledPartyPattern' if 'finalCalledPartyPattern' in df_all.columns else 'Dial Pattern'
             if pattern_col in df_all.columns:
                 df_all['Call Category'] = df_all[pattern_col].apply(classify_from_dial_pattern)
@@ -157,7 +154,7 @@ if "df_all" in st.session_state:
 
         call_order = ['International', 'Other External', 'Mobile']
 
-        # --- Chart 1: Monthly view ---
+        # --- Chart 1: Monthly call distribution ---
         st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
         grouped = (
             df_filtered.groupby(['Month', 'Call Category'])
@@ -175,6 +172,26 @@ if "df_all" in st.session_state:
         ax1.legend(title="Call Type")
         st.pyplot(fig1)
 
+        # --- Chart 1.5: Weekly call distribution ---
+        st.subheader("📊 Weekly Call Volume by Call Type (Filtered)")
+        df_filtered['Weekday'] = df_filtered['Date'].dt.day_name()
+        weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        weekly_grouped = (
+            df_filtered.groupby(['Weekday', 'Call Category'])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(index=weekday_order)
+            .reindex(columns=call_order, fill_value=0)
+        )
+        fig3, ax3 = plt.subplots()
+        weekly_grouped.plot(kind='bar', stacked=True, ax=ax3)
+        ax3.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax3.set_ylabel("Number of Calls")
+        ax3.set_xlabel("Weekday")
+        ax3.set_title("Calls per Weekday by Call Type")
+        ax3.legend(title="Call Type")
+        st.pyplot(fig3)
+
         # --- Chart 2: Total by user ---
         st.subheader("📊 Total Call Volume by User (All Data)")
         all_usernames = list(extension_name_map.values())
@@ -185,13 +202,4 @@ if "df_all" in st.session_state:
             .reindex(index=all_usernames, columns=call_order, fill_value=0)
         )
         grouped_users['Total'] = grouped_users.sum(axis=1)
-        grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='Total')
-
-        fig2, ax2 = plt.subplots()
-        grouped_users.plot(kind='bar', stacked=True, ax=ax2)
-        ax2.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        ax2.set_ylabel("Number of Calls")
-        ax2.set_xlabel("User")
-        ax2.set_title("Total Calls by User (All Files)")
-        ax2.legend(title="Call Type")
-        st.pyplot(fig2)
+        grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='_
