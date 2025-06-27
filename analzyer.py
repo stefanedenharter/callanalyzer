@@ -21,7 +21,7 @@ def classify_call_category(pattern):
     pattern = str(pattern)
     if "9.00!" in pattern:
         return "International"
-    elif "9.08[365789]XXXXXXX" in pattern or re.match(r"9\.0[1-9]\\d{7}$", pattern):
+    elif "9.08[365789]XXXXXXX" in pattern or re.match(r"9\\.0[1-9]\\d{7}$", pattern):
         return "Mobile"
     else:
         return "Other External"
@@ -47,7 +47,7 @@ if analyze and uploaded_files:
 
     for uploaded_file in uploaded_files:
         text = uploaded_file.read().decode("utf-8")
-        match = re.search(r'gk_fileData\s*=\s*{.*?:(?P<q>["\'])((?P<data>.*?))(?P=q)};', text, re.DOTALL)
+        match = re.search(r'gk_fileData\\s*=\\s*{.*?:(?P<q>["\'])((?P<data>.*?))(?P=q)};', text, re.DOTALL)
         if match:
             csv_text = match.group("data").replace('\\r\\n', '\n').replace('\\"', '"')
             df = pd.read_csv(StringIO(csv_text))
@@ -56,7 +56,7 @@ if analyze and uploaded_files:
 
     # --- Standardize column names ---
     df_all.columns = [col.strip() for col in df_all.columns]
-    
+
     # --- Rename for consistency ---
     df_all.rename(columns={
         "dateTimeOrigination": "Timestamp",
@@ -108,13 +108,16 @@ if analyze and uploaded_files:
     )
 
     st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    call_counts.plot(kind='bar', stacked=True, ax=ax, legend=True)
-    ax.set_ylabel("Number of Calls")
-    ax.set_xlabel("Month")
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    ax.legend(title="Call Type", fontsize="small", title_fontsize="small")
-    st.pyplot(fig)
+    if not call_counts.empty:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        call_counts.plot(kind='bar', stacked=True, ax=ax, legend=True)
+        ax.set_ylabel("Number of Calls")
+        ax.set_xlabel("Month")
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.legend(title="Call Type", fontsize="small", title_fontsize="small")
+        st.pyplot(fig)
+    else:
+        st.warning("No call data available for the selected filters.")
 
     # --- Weekly chart ---
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -127,14 +130,17 @@ if analyze and uploaded_files:
     )
 
     st.subheader("📊 Weekly Call Volume by Call Type (Filtered)")
-    fig3, ax3 = plt.subplots(figsize=(8, 4))
-    weekly_grouped.plot(kind='bar', stacked=True, ax=ax3)
-    ax3.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    ax3.set_ylabel("Number of Calls")
-    ax3.set_xlabel("Weekday")
-    ax3.set_title("Calls per Weekday by Call Type")
-    ax3.legend(title="Call Type", fontsize="small", title_fontsize="small")
-    st.pyplot(fig3)
+    if not weekly_grouped.empty:
+        fig3, ax3 = plt.subplots(figsize=(8, 4))
+        weekly_grouped.plot(kind='bar', stacked=True, ax=ax3)
+        ax3.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax3.set_ylabel("Number of Calls")
+        ax3.set_xlabel("Weekday")
+        ax3.set_title("Calls per Weekday by Call Type")
+        ax3.legend(title="Call Type", fontsize="small", title_fontsize="small")
+        st.pyplot(fig3)
+    else:
+        st.warning("No weekly call data available for the selected filters.")
 
     # --- All-user chart ---
     st.subheader("📊 Total Calls by User (All Months)")
@@ -149,14 +155,17 @@ if analyze and uploaded_files:
     total_counts['Total'] = total_counts.sum(axis=1)
     total_counts = total_counts.sort_values(by='Total', ascending=False)
 
-    fig2, ax2 = plt.subplots(figsize=(8, 4))
-    total_counts[call_order].plot(kind='bar', stacked=True, ax=ax2)
-    ax2.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    ax2.set_ylabel("Number of Calls")
-    ax2.set_xlabel("User")
-    ax2.set_title("Total Calls per User by Call Type")
-    ax2.legend(title="Call Type", fontsize="small", title_fontsize="small")
-    st.pyplot(fig2)
+    if not total_counts.empty:
+        fig2, ax2 = plt.subplots(figsize=(8, 4))
+        total_counts[call_order].plot(kind='bar', stacked=True, ax=ax2)
+        ax2.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax2.set_ylabel("Number of Calls")
+        ax2.set_xlabel("User")
+        ax2.set_title("Total Calls per User by Call Type")
+        ax2.legend(title="Call Type", fontsize="small", title_fontsize="small")
+        st.pyplot(fig2)
+    else:
+        st.warning("No overall call data available for known users.")
 
 else:
     st.info("Please upload at least one HTML file and click 'Analyze'.")
