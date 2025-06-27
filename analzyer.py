@@ -26,11 +26,13 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# Classify call type
-def classify_call_type(value):
-    if pd.isna(value):
+# Improved Call Type classification
+def classify_call_type_improved(val):
+    if pd.isna(val):
         return "Unknown"
-    val = str(value).strip()
+    val = str(val).strip().lower()
+    if val in ['mobile', 'international', 'other external']:
+        return val.title()
     if val.startswith('+') or val.startswith('900448'):
         return "International"
     elif re.fullmatch(r'\d{7}', val):
@@ -63,7 +65,6 @@ if st.button("Analyze"):
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
-            # Clean and filter extensions
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
@@ -74,19 +75,16 @@ if st.button("Analyze"):
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
 
-            # Convert timestamp
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(
                     df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            # Call type classification
             if 'finalCalledPartyPattern' in df_all.columns:
-                df_all['Call Category'] = df_all['finalCalledPartyPattern'].apply(classify_call_type)
+                df_all['Call Category'] = df_all['finalCalledPartyPattern'].apply(classify_call_type_improved)
             else:
                 df_all['Call Category'] = "Unknown"
 
-            # Rename columns
             column_renames = {
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -96,7 +94,6 @@ if st.button("Analyze"):
             }
             df_all = df_all.rename(columns=column_renames)
 
-            # Store in session
             st.session_state["df_all"] = df_all
         else:
             st.warning("No valid call data found.")
