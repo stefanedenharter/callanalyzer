@@ -1,4 +1,4 @@
-# Call Analyzer v1.6.3
+# Call Analyzer v1.6.4
 # This Streamlit app processes internal-to-external call reports
 # Classification logic is based on 'finalCalledPartyPattern' since 'Call Type' column does not exist
 
@@ -12,7 +12,7 @@ from datetime import datetime
 from io import StringIO
 
 st.set_page_config(layout="wide")
-st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.3</b></div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right;'>🔹 <b>Call Report Analyzer v1.6.4</b></div>", unsafe_allow_html=True)
 
 # --- Function to classify call category from dial pattern ---
 def classify_call_category(pattern):
@@ -64,14 +64,16 @@ if analyze and uploaded_files:
     # --- Standardize column names ---
     df_all.columns = [col.strip() for col in df_all.columns]
 
-    # --- Rename for consistency ---
-    df_all.rename(columns={
-        "dateTimeOrigination": "Timestamp",
-        "callingPartyNumber": "Extension",
-        "callingPartyUnicodeLoginUserID": "UserID",
-        "finalCalledPartyNumber": "CalledNumber",
-        "finalCalledPartyPattern": "DialPattern"
-    }, inplace=True)
+    # --- Normalize and rename columns robustly ---
+    col_rename = {
+        "datetimeorigination": "Timestamp",
+        "callingpartynumber": "Extension",
+        "callingpartyunicodeloginuserid": "UserID",
+        "finalcalledpartynumber": "CalledNumber",
+        "finalcalledpartypattern": "DialPattern"
+    }
+    rename_map = {col: col_rename[col.lower()] for col in df_all.columns if col.lower() in col_rename}
+    df_all.rename(columns=rename_map, inplace=True)
 
     # --- Filter only known extensions ---
     df_all = df_all[df_all['Extension'].astype(str).isin(ext_mapping.keys())].copy()
