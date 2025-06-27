@@ -1,3 +1,6 @@
+# 📞 Call Report Analyzer - Streamlit App
+# Version 1.6.0 - Classifies using 'Call Type' only
+
 import streamlit as st
 import pandas as pd
 import re
@@ -5,10 +8,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import io
 
-# --- UI setup ---
+# --- Streamlit UI setup ---
 st.set_page_config(page_title="Call Report Analyzer", layout="wide")
 st.title("📞 Phone Call Report Analyzer")
 
+# 📌 Add version badge to top-right
 st.markdown(
     """
     <style>
@@ -24,12 +28,12 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.5.1</div>
+    <div class="version-badge">🔖 Version 1.6.0</div>
     """,
     unsafe_allow_html=True
 )
 
-# --- Extension mapping ---
+# --- Extension to user map ---
 extension_name_map = {
     '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
     '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
@@ -37,7 +41,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# --- Extract embedded CSV from HTML ---
+# --- Extract embedded CSV from HTML content ---
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -50,36 +54,14 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# --- Classify call type from dial pattern ---
-def classify_from_dial_pattern(val):
-    if pd.isna(val):
-        return "Unknown"
-    val = str(val).strip().lower()
-    if val == "mobile":
-        return "Mobile"
-    if val == "international":
-        return "International"
-    if val == "other external":
-        return "Other External"
-    if val.startswith('+') or val.startswith('900448') or val.startswith('9.00'):
-        return "International"
-    elif re.fullmatch(r'\d{7}', val):
-        return "Other External"
-    elif re.match(r'^(7|8|9)\d{6,}', val):
-        return "Mobile"
-    elif val.startswith('9.08') or 'mobile' in val:
-        return "Mobile"
-    else:
-        return "Other External"
-
-# --- File uploader ---
+# --- Upload call report HTML files ---
 uploaded_files = st.file_uploader(
     "Upload one or more HTML call report files:",
     type="html",
     accept_multiple_files=True
 )
 
-# --- Run analysis ---
+# --- Run parser when Analyze is clicked ---
 if st.button("Analyze"):
     if uploaded_files:
         all_data = []
@@ -91,9 +73,11 @@ if st.button("Analyze"):
                 all_data.append(df)
 
         if all_data:
+            # Combine all reports into a single DataFrame
             df_all = pd.concat(all_data, ignore_index=True)
             df_all.columns = [col.strip() for col in df_all.columns]
 
+            # Filter by known extensions and assign user IDs
             if 'callingPartyNumber' in df_all.columns:
                 df_all['callingPartyNumber'] = (
                     df_all['callingPartyNumber']
@@ -104,17 +88,21 @@ if st.button("Analyze"):
                 df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
                 df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
 
+            # Convert Unix timestamp to datetime and extract month
             if 'dateTimeOrigination' in df_all.columns:
                 df_all['dateTimeOrigination'] = pd.to_datetime(
                     df_all['dateTimeOrigination'], unit='s', errors='coerce')
                 df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
 
-            pattern_col = 'finalCalledPartyPattern' if 'finalCalledPartyPattern' in df_all.columns else 'Dial Pattern'
-            if pattern_col in df_all.columns:
-                df_all['Call Category'] = df_all[pattern_col].apply(classify_from_dial_pattern)
+            # ✅ Classify using Call Type text
+            if 'Call Type' in df_all.columns:
+                df_all['Call Category'] = df_all['Call Type'].apply(
+                    lambda x: str(x).strip().title() if pd.notna(x) else "Unknown"
+                )
             else:
                 df_all['Call Category'] = "Unknown"
 
+            # Rename columns for display
             df_all = df_all.rename(columns={
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -128,18 +116,19 @@ if st.button("Analyze"):
     else:
         st.warning("Please upload at least one HTML file.")
 
-# --- Display & Visuals ---
+# --- Filtering and visualization interface ---
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
     st.subheader("📋 Raw Call Records")
 
+    # Unique filter values
     call_order = ['International', 'Other External', 'Mobile']
     user_ids = df_all['User'].dropna().unique().tolist()
     call_types = df_all['Call Category'].dropna().unique().tolist()
     all_months = sorted(df_all['Month'].dropna().astype(str).unique().tolist())
 
-    # --- Filters in one row ---
+    # --- Filter controls: user, call type, month ---
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_user = st.selectbox("Filter by User", ["All"] + sorted(user_ids))
@@ -148,6 +137,7 @@ if "df_all" in st.session_state:
     with col3:
         selected_month = st.selectbox("Filter by Month", ["All"] + all_months)
 
+    # --- Apply filters ---
     df_filtered = df_all.copy()
     if selected_user != "All":
         df_filtered = df_filtered[df_filtered['User'] == selected_user]
@@ -156,12 +146,13 @@ if "df_all" in st.session_state:
     if selected_month != "All":
         df_filtered = df_filtered[df_filtered['Month'].astype(str) == selected_month]
 
+    # --- Display filtered table ---
     if df_filtered.empty:
         st.info("No call records match the selected filters.")
     else:
         st.dataframe(df_filtered)
 
-        # --- Chart 1: Monthly call distribution ---
+        # --- Chart 1: Monthly Volume (Filtered) ---
         grouped = (
             df_filtered.groupby(['Month', 'Call Category'])
             .size()
@@ -181,7 +172,7 @@ if "df_all" in st.session_state:
             ax1.legend(title="Call Type", fontsize="small", title_fontsize="small")
             st.pyplot(fig1)
 
-        # --- Chart 1.5: Weekly call distribution ---
+        # --- Chart 1.5: Weekly Volume (Filtered) ---
         with col2:
             st.subheader("📊 Weekly Call Volume (Filtered)")
             df_filtered['Weekday'] = df_filtered['Date'].dt.day_name()
@@ -202,7 +193,7 @@ if "df_all" in st.session_state:
             ax3.legend(title="Call Type", fontsize="small", title_fontsize="small")
             st.pyplot(fig3)
 
-        # --- Chart 2: Total by user ---
+        # --- Chart 2: Total Volume by User (All Data) ---
         st.subheader("📊 Total Call Volume by User (All Data)")
         all_usernames = list(extension_name_map.values())
         grouped_users = (
