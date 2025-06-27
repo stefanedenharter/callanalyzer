@@ -202,4 +202,13 @@ if "df_all" in st.session_state:
             .reindex(index=all_usernames, columns=call_order, fill_value=0)
         )
         grouped_users['Total'] = grouped_users.sum(axis=1)
-        grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='_
+        grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='Total')
+
+        fig2, ax2 = plt.subplots()
+        grouped_users.plot(kind='bar', stacked=True, ax=ax2)
+        ax2.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax2.set_ylabel("Number of Calls")
+        ax2.set_xlabel("User")
+        ax2.set_title("Total Calls by User (All Files)")
+        ax2.legend(title="Call Type")
+        st.pyplot(fig2)
