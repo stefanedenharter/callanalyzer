@@ -5,7 +5,31 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import io
 
-# Extension-to-name mapping
+# Title and version badge
+st.set_page_config(page_title="Call Report Analyzer", layout="wide")
+st.title("📞 Phone Call Report Analyzer")
+
+st.markdown(
+    """
+    <style>
+    .version-badge {
+        position: absolute;
+        top: 0.5rem;
+        right: 1rem;
+        background-color: #e0e0e0;
+        color: #000;
+        padding: 0.25rem 0.5rem;
+        border-radius: 5px;
+        font-size: 0.85rem;
+        z-index: 1000;
+    }
+    </style>
+    <div class="version-badge">🔖 Version 1.2.0</div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Extension mapping
 extension_name_map = {
     '7773': 'AD', '7789': 'PF', '7725': 'CB', '7729': 'SM',
     '7768': 'CM', '7722': 'FF', '7783': 'TM', '7769': 'PB',
@@ -13,7 +37,7 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# Function to extract embedded CSV from HTML
+# Extract CSV from HTML bytes
 def extract_csv_from_html_bytes(file_bytes):
     try:
         text = file_bytes.decode('utf-8')
@@ -26,7 +50,7 @@ def extract_csv_from_html_bytes(file_bytes):
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
 
-# Improved call type classification
+# Improved call type classifier
 def classify_call_type_improved(val):
     if pd.isna(val):
         return "Unknown"
@@ -42,9 +66,7 @@ def classify_call_type_improved(val):
     else:
         return "Other External"
 
-# Streamlit UI
-st.title("📞 Phone Call Report Analyzer")
-
+# File upload
 uploaded_files = st.file_uploader(
     "Upload one or more HTML call report files:",
     type="html",
@@ -85,6 +107,7 @@ if st.button("Analyze"):
             else:
                 df_all['Call Category'] = "Unknown"
 
+            # Rename columns
             column_renames = {
                 'callingPartyUnicodeLoginUserID': 'User',
                 'callingPartyNumber': 'Extension',
@@ -94,13 +117,23 @@ if st.button("Analyze"):
             }
             df_all = df_all.rename(columns=column_renames)
 
+            # ✅ Debug: confirm presence of 'Mobile' label
+            if 'Dial Pattern' in df_all.columns and 'Call Category' in df_all.columns:
+                if 'mobile' in df_all['Dial Pattern'].astype(str).str.lower().values:
+                    st.info("✅ Found literal 'Mobile' entry in Dial Pattern column.")
+                else:
+                    st.warning("⚠️ No literal 'Mobile' entry found in Dial Pattern column.")
+
+                st.write("🔍 Sample Dial Patterns:")
+                st.write(df_all['Dial Pattern'].dropna().unique()[:10])
+
             st.session_state["df_all"] = df_all
         else:
             st.warning("No valid call data found.")
     else:
         st.warning("Please upload at least one HTML file.")
 
-# Display output
+# Main interface
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
@@ -123,9 +156,10 @@ if "df_all" in st.session_state:
     else:
         st.dataframe(df_filtered)
 
-        # Chart 1: Monthly Call Volume (Filtered)
-        st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
         call_order = ['International', 'Other External', 'Mobile']
+
+        # Chart 1: Monthly
+        st.subheader("📊 Monthly Call Volume by Call Type (Filtered)")
         grouped = (
             df_filtered.groupby(['Month', 'Call Category'])
             .size()
@@ -133,7 +167,6 @@ if "df_all" in st.session_state:
             .reindex(columns=call_order, fill_value=0)
             .sort_index()
         )
-
         fig1, ax1 = plt.subplots()
         grouped.plot(kind='bar', stacked=True, ax=ax1)
         ax1.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
@@ -143,8 +176,7 @@ if "df_all" in st.session_state:
         ax1.legend(title="Call Type")
         st.pyplot(fig1)
 
-    
-        # Chart 2: Total Calls by User (Unfiltered)
+        # Chart 2: User totals
         st.subheader("📊 Total Call Volume by User (Unfiltered)")
         all_usernames = list(extension_name_map.values())
         grouped_users = (
