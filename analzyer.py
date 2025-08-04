@@ -23,7 +23,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.7.0</div>
+    <div class="version-badge">🔖 Version 1.8.0</div>
     """,
     unsafe_allow_html=True
 )
@@ -48,12 +48,12 @@ def extract_data_from_excel(file):
     try:
         df = pd.read_excel(file, sheet_name="Raw Data", engine="openpyxl")
         df.columns = [str(col).strip() for col in df.columns]
-        
+
         # --- Fix dateTimeConnect == 0 ---
         if "dateTimeConnect" in df.columns and "dateTimeDisconnect" in df.columns:
             mask = df["dateTimeConnect"] == 0
             df.loc[mask, "dateTimeConnect"] = df.loc[mask, "dateTimeDisconnect"] - 600
-        
+
         part_cols = [
             "finalCalledPartyNumberPartition",
             "originalCalledPartyNumberPartition",
@@ -144,8 +144,8 @@ if "df_all" in st.session_state:
     else:
         st.dataframe(df_filtered)
 
-        ## ----------- Dual Axis Chart Function ----------- ##
-        def dual_axis_chart(groupby_col, group_order, x_label):
+        ## ----------- Stacked Side-by-Side Chart Function ----------- ##
+        def stacked_side_by_side_chart(groupby_col, group_order, x_label):
             grouped_calls = (
                 df_filtered.groupby([groupby_col, 'Call Category'])
                 .size()
@@ -162,46 +162,43 @@ if "df_all" in st.session_state:
             )
 
             x = np.arange(len(group_order))
-            width = 0.7 / max(1, len(call_order))  # fit all bars within group
-
-            fig, ax1 = plt.subplots(figsize=(max(6, len(group_order)), 4))
-            ax2 = ax1.twinx()
-
+            width = 0.35
+            fig, ax = plt.subplots(figsize=(max(6, len(group_order)), 4))
             colors = plt.cm.tab10.colors
 
+            # Stacked bar for Calls (left)
+            bottom_calls = np.zeros(len(group_order))
             for i, call_type in enumerate(call_order):
-                # Calls: Bars
-                ax1.bar(x + i*width, grouped_calls[call_type], width=width,
-                        label=f"{call_type} (Calls)", color=colors[i % 10], alpha=0.75)
-                # Duration: Lines
-                ax2.plot(x + i*width + width/2, grouped_duration[call_type], 'o-', color=colors[i % 10],
-                         label=f"{call_type} (Minutes)", linewidth=2)
+                ax.bar(x - width/2, grouped_calls[call_type], width, 
+                       label=call_type if i==0 else "", 
+                       bottom=bottom_calls, color=colors[i % 10], alpha=0.75)
+                bottom_calls += grouped_calls[call_type]
 
-            ax1.set_ylabel("Number of Calls")
-            ax2.set_ylabel("Total Duration (Minutes)")
-            ax1.set_xlabel(x_label)
-            ax1.set_xticks(x + width*(len(call_order)-1)/2)
-            ax1.set_xticklabels([str(g) for g in group_order], rotation=45)
-            ax1.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-            ax1.set_title(f"Calls and Duration by {x_label}")
+            # Stacked bar for Duration (right)
+            bottom_dur = np.zeros(len(group_order))
+            for i, call_type in enumerate(call_order):
+                ax.bar(x + width/2, grouped_duration[call_type], width, 
+                       label=None, 
+                       bottom=bottom_dur, color=colors[i % 10], alpha=0.45)
+                bottom_dur += grouped_duration[call_type]
 
-            # Build a custom legend for both axes
-            bars = [plt.Line2D([0], [0], color=colors[i % 10], lw=4) for i in range(len(call_order))]
-            lines = [plt.Line2D([0], [0], marker='o', color=colors[i % 10], lw=2) for i in range(len(call_order))]
-            labels = []
-            for i, ct in enumerate(call_order):
-                labels.append(f"{ct} (Calls)")
-            for i, ct in enumerate(call_order):
-                labels.append(f"{ct} (Minutes)")
-            ax1.legend(bars + lines, labels, fontsize="small", ncol=2, loc='upper left', bbox_to_anchor=(0,1.15))
+            ax.set_ylabel("Count (left) / Duration in Minutes (right)")
+            ax.set_xlabel(x_label)
+            ax.set_xticks(x)
+            ax.set_xticklabels([str(g) for g in group_order], rotation=45)
+            ax.set_title(f"Number of Calls (left) & Duration (right) by {x_label}")
+
+            # Only one legend (call types, color-matched)
+            handles = [plt.Rectangle((0,0),1,1,color=colors[i % 10]) for i in range(len(call_order))]
+            ax.legend(handles, call_order, title="Call Category", bbox_to_anchor=(1.02, 1), loc="upper left")
             fig.tight_layout()
             return fig
 
         ## --- Chart 1: Monthly ---
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("📊 Monthly: Number of Calls & Total Duration (min)")
-            fig1 = dual_axis_chart(
+            st.subheader("📊 Monthly: Calls & Duration (min) — Stacked Side by Side")
+            fig1 = stacked_side_by_side_chart(
                 groupby_col="Month",
                 group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
                 x_label="Month"
@@ -211,8 +208,8 @@ if "df_all" in st.session_state:
         ## --- Chart 2: Weekday ---
         weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         with col2:
-            st.subheader("📊 Weekly: Number of Calls & Total Duration (min)")
-            fig2 = dual_axis_chart(
+            st.subheader("📊 Weekly: Calls & Duration (min) — Stacked Side by Side")
+            fig2 = stacked_side_by_side_chart(
                 groupby_col="Weekday",
                 group_order=weekday_order,
                 x_label="Weekday"
@@ -220,9 +217,9 @@ if "df_all" in st.session_state:
             st.pyplot(fig2)
 
         ## --- Chart 3: User ---
-        st.subheader("📊 Total by User: Number of Calls & Total Duration (min)")
+        st.subheader("📊 By User: Calls & Duration (min) — Stacked Side by Side")
         all_usernames = list(extension_name_map.values())
-        fig3 = dual_axis_chart(
+        fig3 = stacked_side_by_side_chart(
             groupby_col="User",
             group_order=all_usernames,
             x_label="User"
