@@ -106,19 +106,26 @@ if "df_all" in st.session_state:
     # --- Filters in one row ---
     col1, col2, col3 = st.columns(3)
     with col1:
-        selected_user = st.multiselect("Filter by User", ["All"] + sorted(user_ids))
+        selected_users = st.multiselect(
+            "Filter by User", sorted(user_ids), default=sorted(user_ids)
+        )
     with col2:
-        selected_type = st.multiselect("Filter by Call Type", ["All"] + call_order)
+        selected_types = st.multiselect(
+            "Filter by Call Type", call_order, default=call_order
+        )
     with col3:
-        selected_month = st.multiselect("Filter by Month", ["All"] + all_months)
+        selected_months = st.multiselect(
+            "Filter by Month", all_months, default=all_months
+        )
 
     df_filtered = df_all.copy()
-    if selected_user != "All":
-        df_filtered = df_filtered[df_filtered['User'] == selected_user]
-    if selected_type != "All":
-        df_filtered = df_filtered[df_filtered['Call Category'] == selected_type]
-    if selected_month != "All":
-        df_filtered = df_filtered[df_filtered['Month'].astype(str) == selected_month]
+    if selected_users:
+        df_filtered = df_filtered[df_filtered['User'].isin(selected_users)]
+    if selected_types:
+        df_filtered = df_filtered[df_filtered['Call Category'].isin(selected_types)]
+    if selected_months:
+        df_filtered = df_filtered[df_filtered['Month'].astype(str).isin(selected_months)]
+
 
     if df_filtered.empty:
         st.info("No call records match the selected filters.")
