@@ -106,11 +106,11 @@ if "df_all" in st.session_state:
     # --- Filters in one row ---
     col1, col2, col3 = st.columns(3)
     with col1:
-        selected_user = st.selectbox("Filter by User", ["All"] + sorted(user_ids))
+        selected_user = st.multiselect("Filter by User", ["All"] + sorted(user_ids))
     with col2:
-        selected_type = st.selectbox("Filter by Call Type", ["All"] + call_order)
+        selected_type = st.multiselect("Filter by Call Type", ["All"] + call_order)
     with col3:
-        selected_month = st.selectbox("Filter by Month", ["All"] + all_months)
+        selected_month = st.multiselect("Filter by Month", ["All"] + all_months)
 
     df_filtered = df_all.copy()
     if selected_user != "All":
