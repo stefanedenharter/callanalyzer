@@ -197,7 +197,7 @@ if "df_all" in st.session_state:
             if show_legend:
                 handles, labels = ax1.get_legend_handles_labels()
                 leg = ax1.legend(handles, labels, title="Call Category",
-                                 loc='upper right', fontsize='small',
+                                 loc='upper left', fontsize='small',
                                  frameon=True, fancybox=True,
                                  facecolor='white', edgecolor='black',
                                  framealpha=0.8)
