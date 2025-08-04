@@ -165,48 +165,54 @@ if "df_all" in st.session_state:
 
             x = np.arange(len(group_order))
             width = 0.35
-            fig, ax1 = plt.subplots(figsize=(8, 4))  # Fixed width and height
+            fig, ax1 = plt.subplots(figsize=(8, 4))
             ax2 = ax1.twinx()
             colors = plt.cm.tab10.colors
 
             # Stacked bar for Calls (ax1, left)
             bottom_calls = np.zeros(len(group_order))
+            bars_calls = []
             for i, call_type in enumerate(call_order):
-                ax1.bar(x - width/2, grouped_calls[call_type], width,
-                        label=f"{call_type} (Calls)" if i == 0 else "",
-                        bottom=bottom_calls, color=colors[i % 10], alpha=0.8)
+                bar = ax1.bar(x - width/2, grouped_calls[call_type], width,
+                            bottom=bottom_calls, color=colors[i % 10], alpha=0.85)
+                bars_calls.append(bar)
                 bottom_calls += grouped_calls[call_type]
 
             # Stacked bar for Duration (ax2, right)
             bottom_dur = np.zeros(len(group_order))
+            bars_dur = []
             for i, call_type in enumerate(call_order):
-                ax2.bar(x + width/2, grouped_duration[call_type], width,
-                        label=f"{call_type} (Duration)" if i == 0 else "",
-                        bottom=bottom_dur, color=colors[i % 10], alpha=0.4, hatch="//")
+                bar = ax2.bar(x + width/2, grouped_duration[call_type], width,
+                            bottom=bottom_dur, color=colors[i % 10], alpha=0.55,
+                            hatch='//', edgecolor='gray', linewidth=0.5)
+                bars_dur.append(bar)
                 bottom_dur += grouped_duration[call_type]
 
             ax1.set_ylabel("Number of Calls")
             ax2.set_ylabel("Duration in Minutes")
             ax1.set_xlabel(x_label)
             ax1.set_xticks(x)
-            ax1.set_xticklabels([str(g) for g in group_order], rotation=45)
-            ax1.set_title(f"Number of Calls (left, solid) & Duration (right, hatched) by {x_label}")
+            ax1.set_xticklabels([str(g) for g in group_order], rotation=45, ha='right')
+            ax1.set_title(f"Number of Calls & Duration by {x_label}")
 
-            # Set y-limits for both axes to max of stacks
-            ax1.set_ylim(0, max(bottom_calls.max(), 1) * 1.10)
-            ax2.set_ylim(0, max(bottom_dur.max(), 1) * 1.10)
+            # Set y-limits for both axes to max of stacks + 10% margin
+            ax1.set_ylim(0, max(bottom_calls.max(), 1) * 1.1)
+            ax2.set_ylim(0, max(bottom_dur.max(), 1) * 1.1)
 
+            # Legend placement and layout
             if show_legend:
-                # Legend inside the plot at top right, with padding to avoid clipping
-                handles = [plt.Rectangle((0,0),1,1,color=colors[i % 10]) for i in range(len(call_order))]
-                ax1.legend(handles, call_order, title="Call Category", loc='upper right', fontsize='small',
-                        borderaxespad=0.5, frameon=True)
-                fig.subplots_adjust(right=0.85)
+                # Legend from the call bars (solid colors)
+                handles = [bars_calls[i][0] for i in range(len(call_order))]
+                labels = call_order
+                leg = ax1.legend(handles, labels, title="Call Category", loc='upper left',
+                                bbox_to_anchor=(1.02, 1), fontsize='small', frameon=True)
+                fig.subplots_adjust(right=0.75)
             else:
-                fig.subplots_adjust(right=0.95)  # More space on right without legend
+                fig.subplots_adjust(right=0.95)  # Leave room on right side
 
             fig.tight_layout()
             return fig
+
 
 
         ## --- Chart 1: Monthly ---
@@ -216,25 +222,27 @@ if "df_all" in st.session_state:
             fig1 = stacked_side_by_side_chart_dual_axis(
                 groupby_col="Month",
                 group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
-                x_label="Month"
+                x_label="Month",
+                show_legend=True
             )
             st.pyplot(fig1)
 
-        ## --- Chart 2: Weekday ---
         with col2:
             st.subheader("📊 Weekly: Calls & Duration (min)")
             fig2 = stacked_side_by_side_chart_dual_axis(
                 groupby_col="Weekday",
                 group_order=weekday_order,
-                x_label="Weekday"
+                x_label="Weekday",
+                show_legend=False
             )
             st.pyplot(fig2)
 
-        ## --- Chart 3: User ---
         st.subheader("📊 By User: Calls & Duration (min)")
         fig3 = stacked_side_by_side_chart_dual_axis(
             groupby_col="User",
             group_order=all_usernames,
-            x_label="User"
+            x_label="User",
+            show_legend=False
         )
         st.pyplot(fig3)
+
