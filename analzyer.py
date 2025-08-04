@@ -23,7 +23,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.6.0</div>
+    <div class="version-badge">🔖 Version 1.7.0</div>
     """,
     unsafe_allow_html=True
 )
@@ -72,13 +72,13 @@ def extract_data_from_excel(file):
 
         df["source_file"] = getattr(file, 'name', None)  # Track source file if possible
 
-        # --- Calculate call duration ---
+        # --- Calculate call duration in minutes ---
         df["Call Duration (s)"] = df["dateTimeDisconnect"] - df["dateTimeConnect"]
-        df["Call Duration (hr)"] = df["Call Duration (s)"] / 3600
+        df["Call Duration (min)"] = df["Call Duration (s)"] / 60
 
         keep_cols = [
             "User", "callingPartyNumber", "dateTimeConnect", "dateTimeDisconnect", "Call Category",
-            "Date", "Month", "Weekday", "source_file", "Call Duration (s)", "Call Duration (hr)"
+            "Date", "Month", "Weekday", "source_file", "Call Duration (s)", "Call Duration (min)"
         ]
         df = df[keep_cols].rename(columns={
             "callingPartyNumber": "Extension",
@@ -144,8 +144,8 @@ if "df_all" in st.session_state:
     else:
         st.dataframe(df_filtered)
 
-        ## ----------- Grouped Bar Chart Helper Function ----------- ##
-        def grouped_bar_chart(groupby_col, group_order, x_label):
+        ## ----------- Dual Axis Chart Function ----------- ##
+        def dual_axis_chart(groupby_col, group_order, x_label):
             grouped_calls = (
                 df_filtered.groupby([groupby_col, 'Call Category'])
                 .size()
@@ -154,7 +154,7 @@ if "df_all" in st.session_state:
                 .reindex(columns=call_order, fill_value=0)
             )
             grouped_duration = (
-                df_filtered.groupby([groupby_col, 'Call Category'])["Call Duration (hr)"]
+                df_filtered.groupby([groupby_col, 'Call Category'])["Call Duration (min)"]
                 .sum()
                 .unstack(fill_value=0)
                 .reindex(index=group_order, fill_value=0)
@@ -162,35 +162,46 @@ if "df_all" in st.session_state:
             )
 
             x = np.arange(len(group_order))
-            width = 0.35  # width of a bar
-            fig, ax = plt.subplots(figsize=(max(6, len(group_order)), 4))
+            width = 0.7 / max(1, len(call_order))  # fit all bars within group
 
-            n_types = len(call_order)
+            fig, ax1 = plt.subplots(figsize=(max(6, len(group_order)), 4))
+            ax2 = ax1.twinx()
+
+            colors = plt.cm.tab10.colors
+
             for i, call_type in enumerate(call_order):
-                # Calls
-                ax.bar(x + i*width/(2*n_types), grouped_calls[call_type], width/(2*n_types),
-                       label=f"{call_type} (Calls)")
-                # Duration
-                ax.bar(x + width/2 + i*width/(2*n_types), grouped_duration[call_type], width/(2*n_types),
-                       label=f"{call_type} (Hours)", alpha=0.7, hatch='//')
+                # Calls: Bars
+                ax1.bar(x + i*width, grouped_calls[call_type], width=width,
+                        label=f"{call_type} (Calls)", color=colors[i % 10], alpha=0.75)
+                # Duration: Lines
+                ax2.plot(x + i*width + width/2, grouped_duration[call_type], 'o-', color=colors[i % 10],
+                         label=f"{call_type} (Minutes)", linewidth=2)
 
-            ax.set_xticks(x + width/4)
-            ax.set_xticklabels([str(g) for g in group_order], rotation=45)
-            ax.set_ylabel("Count / Hours")
-            ax.set_xlabel(x_label)
-            handles, labels = ax.get_legend_handles_labels()
-            # Remove duplicates in legend
-            unique = dict(zip(labels, handles))
-            ax.legend(unique.values(), unique.keys(), fontsize="small", title_fontsize="small", ncol=2)
-            ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-            ax.set_title(f"Calls and Duration by {x_label}")
+            ax1.set_ylabel("Number of Calls")
+            ax2.set_ylabel("Total Duration (Minutes)")
+            ax1.set_xlabel(x_label)
+            ax1.set_xticks(x + width*(len(call_order)-1)/2)
+            ax1.set_xticklabels([str(g) for g in group_order], rotation=45)
+            ax1.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+            ax1.set_title(f"Calls and Duration by {x_label}")
+
+            # Build a custom legend for both axes
+            bars = [plt.Line2D([0], [0], color=colors[i % 10], lw=4) for i in range(len(call_order))]
+            lines = [plt.Line2D([0], [0], marker='o', color=colors[i % 10], lw=2) for i in range(len(call_order))]
+            labels = []
+            for i, ct in enumerate(call_order):
+                labels.append(f"{ct} (Calls)")
+            for i, ct in enumerate(call_order):
+                labels.append(f"{ct} (Minutes)")
+            ax1.legend(bars + lines, labels, fontsize="small", ncol=2, loc='upper left', bbox_to_anchor=(0,1.15))
+            fig.tight_layout()
             return fig
 
         ## --- Chart 1: Monthly ---
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("📊 Monthly: Number of Calls & Total Duration")
-            fig1 = grouped_bar_chart(
+            st.subheader("📊 Monthly: Number of Calls & Total Duration (min)")
+            fig1 = dual_axis_chart(
                 groupby_col="Month",
                 group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
                 x_label="Month"
@@ -200,8 +211,8 @@ if "df_all" in st.session_state:
         ## --- Chart 2: Weekday ---
         weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         with col2:
-            st.subheader("📊 Weekly: Number of Calls & Total Duration")
-            fig2 = grouped_bar_chart(
+            st.subheader("📊 Weekly: Number of Calls & Total Duration (min)")
+            fig2 = dual_axis_chart(
                 groupby_col="Weekday",
                 group_order=weekday_order,
                 x_label="Weekday"
@@ -209,9 +220,9 @@ if "df_all" in st.session_state:
             st.pyplot(fig2)
 
         ## --- Chart 3: User ---
-        st.subheader("📊 Total by User: Number of Calls & Total Duration")
+        st.subheader("📊 Total by User: Number of Calls & Total Duration (min)")
         all_usernames = list(extension_name_map.values())
-        fig3 = grouped_bar_chart(
+        fig3 = dual_axis_chart(
             groupby_col="User",
             group_order=all_usernames,
             x_label="User"
