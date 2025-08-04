@@ -216,26 +216,26 @@ if "df_all" in st.session_state:
 
 
         ## --- Chart 1: Monthly ---
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("📊 Monthly: Calls & Duration (min)")
-            fig1 = stacked_side_by_side_chart_dual_axis(
-                groupby_col="Month",
-                group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
-                x_label="Month",
-                show_legend=True
-            )
-            st.pyplot(fig1)
 
-        with col2:
-            st.subheader("📊 Weekly: Calls & Duration (min)")
-            fig2 = stacked_side_by_side_chart_dual_axis(
-                groupby_col="Weekday",
-                group_order=weekday_order,
-                x_label="Weekday",
-                show_legend=False
-            )
-            st.pyplot(fig2)
+
+        st.subheader("📊 Monthly: Calls & Duration (min)")
+        fig1 = stacked_side_by_side_chart_dual_axis(
+            groupby_col="Month",
+            group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
+            x_label="Month",
+            show_legend=True
+        )
+        st.pyplot(fig1)
+
+
+        st.subheader("📊 Weekly: Calls & Duration (min)")
+        fig2 = stacked_side_by_side_chart_dual_axis(
+            groupby_col="Weekday",
+            group_order=weekday_order,
+            x_label="Weekday",
+            show_legend=False
+        )
+        st.pyplot(fig2)
 
         st.subheader("📊 By User: Calls & Duration (min)")
         fig3 = stacked_side_by_side_chart_dual_axis(
