@@ -110,13 +110,15 @@ if st.button("Analyze"):
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
-    st.subheader("📋 Raw Call Records")
-
     call_order = sorted(df_all['Call Category'].dropna().unique())
     user_ids = df_all['User'].dropna().unique().tolist()
-    all_months = sorted(df_all['Month'].dropna().astype(str).unique().tolist())
     all_usernames = list(extension_name_map.values())
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+    # Prepare last 12 months including current
+    now = pd.Timestamp.now()
+    last_12_months = pd.period_range(end=now.to_period('M'), periods=12).tolist()
+    last_12_months_str = [str(m) for m in last_12_months]
 
     # --- Multi-select Filters ---
     col1, col2, col3 = st.columns(3)
@@ -130,7 +132,7 @@ if "df_all" in st.session_state:
         )
     with col3:
         selected_months = st.multiselect(
-            "Filter by Month", all_months, default=all_months
+            "Filter by Month", sorted(set(last_12_months_str + [str(m) for m in df_all['Month'].unique()])), default=last_12_months_str
         )
 
     df_filtered = df_all.copy()
@@ -144,9 +146,7 @@ if "df_all" in st.session_state:
     if df_filtered.empty:
         st.info("No call records match the selected filters.")
     else:
-        st.dataframe(df_filtered)
 
-        ## ----------- Stacked Side-by-Side Dual Axis Chart Function ----------- ##
         def stacked_side_by_side_chart_dual_axis(groupby_col, group_order, x_label, show_legend=False):
             grouped_calls = (
                 df_filtered.groupby([groupby_col, 'Call Category'])
@@ -169,23 +169,19 @@ if "df_all" in st.session_state:
             ax2 = ax1.twinx()
             colors = plt.cm.tab10.colors
 
-            # Stacked bar for Calls (ax1, left)
             bottom_calls = np.zeros(len(group_order))
-            bars_calls = []
             for i, call_type in enumerate(call_order):
-                bar = ax1.bar(x - width/2, grouped_calls[call_type], width,
-                            bottom=bottom_calls, color=colors[i % 10], alpha=0.85)
-                bars_calls.append(bar)
+                ax1.bar(x - width/2, grouped_calls[call_type], width,
+                        label=call_type if i == 0 else "",
+                        bottom=bottom_calls, color=colors[i % 10], alpha=0.85)
                 bottom_calls += grouped_calls[call_type]
 
-            # Stacked bar for Duration (ax2, right)
             bottom_dur = np.zeros(len(group_order))
-            bars_dur = []
             for i, call_type in enumerate(call_order):
-                bar = ax2.bar(x + width/2, grouped_duration[call_type], width,
-                            bottom=bottom_dur, color=colors[i % 10], alpha=0.55,
-                            hatch='//', edgecolor='gray', linewidth=0.5)
-                bars_dur.append(bar)
+                ax2.bar(x + width/2, grouped_duration[call_type], width,
+                        label=call_type if i == 0 else "",
+                        bottom=bottom_dur, color=colors[i % 10], alpha=0.55,
+                        hatch='//', edgecolor='gray', linewidth=0.5)
                 bottom_dur += grouped_duration[call_type]
 
             ax1.set_ylabel("Number of Calls")
@@ -195,45 +191,41 @@ if "df_all" in st.session_state:
             ax1.set_xticklabels([str(g) for g in group_order], rotation=45, ha='right')
             ax1.set_title(f"Number of Calls & Duration by {x_label}")
 
-            # Set y-limits for both axes to max of stacks + 10% margin
             ax1.set_ylim(0, max(bottom_calls.max(), 1) * 1.1)
             ax2.set_ylim(0, max(bottom_dur.max(), 1) * 1.1)
 
-            # Legend placement and layout
             if show_legend:
-                # Legend from the call bars (solid colors)
-                handles = [bars_calls[i][0] for i in range(len(call_order))]
-                labels = call_order
-                leg = ax1.legend(handles, labels, title="Call Category", loc='upper left',
-                                bbox_to_anchor=(1.02, 1), fontsize='small', frameon=True)
-                fig.subplots_adjust(right=0.75)
+                handles, labels = ax1.get_legend_handles_labels()
+                leg = ax1.legend(handles, labels, title="Call Category",
+                                 loc='upper right', fontsize='small',
+                                 frameon=True, fancybox=True,
+                                 facecolor='white', edgecolor='black',
+                                 framealpha=0.8)
+                fig.subplots_adjust(right=0.85)
             else:
-                fig.subplots_adjust(right=0.95)  # Leave room on right side
+                fig.subplots_adjust(right=0.95)
 
             fig.tight_layout()
             return fig
 
+        # Filter dataframe for last 12 months for monthly chart
+        df_filtered_monthly = df_filtered[df_filtered['Month'].astype(str).isin(last_12_months_str)]
 
-
-        ## --- Chart 1: Monthly ---
-
-
-        st.subheader("📊 Monthly: Calls & Duration (min)")
+        st.subheader("📊 Monthly: Calls & Duration (min) — Last 12 Months")
         fig1 = stacked_side_by_side_chart_dual_axis(
             groupby_col="Month",
-            group_order=[pd.Period(m) for m in all_months] if all_months and isinstance(df_filtered['Month'].iloc[0], pd.Period) else all_months,
+            group_order=last_12_months,
             x_label="Month",
             show_legend=True
         )
         st.pyplot(fig1)
-
 
         st.subheader("📊 Weekly: Calls & Duration (min)")
         fig2 = stacked_side_by_side_chart_dual_axis(
             groupby_col="Weekday",
             group_order=weekday_order,
             x_label="Weekday",
-            show_legend=False
+            show_legend=True
         )
         st.pyplot(fig2)
 
@@ -242,7 +234,10 @@ if "df_all" in st.session_state:
             groupby_col="User",
             group_order=all_usernames,
             x_label="User",
-            show_legend=False
+            show_legend=True
         )
         st.pyplot(fig3)
 
+        # Move the dataframe to the bottom, after charts
+        st.subheader("📋 Raw Call Records (Filtered)")
+        st.dataframe(df_filtered)
