@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-import re
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import io
 
 # --- UI setup ---
 st.set_page_config(page_title="Call Report Analyzer", layout="wide")
@@ -24,7 +22,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.5.1</div>
+    <div class="version-badge">🔖 Version 1.5.2</div>
     """,
     unsafe_allow_html=True
 )
@@ -38,96 +36,61 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# --- Extract embedded CSV from HTML ---
-def extract_csv_from_html_bytes(file_bytes):
-    try:
-        text = file_bytes.decode('utf-8')
-        match = re.search(r'gk_fileData\s*=\s*{.*?:(?P<q>["\'])(?P<data>.*?)(?P=q)};', text, re.DOTALL)
-        if not match:
-            return pd.DataFrame()
-        csv_data = match.group("data").encode('utf-8').decode('unicode_escape')
-        return pd.read_csv(io.StringIO(csv_data))
-    except Exception as e:
-        st.error(f"Error parsing file: {e}")
-        return pd.DataFrame()
-
-# --- Classify call type from dial pattern ---
-def classify_from_dial_pattern(val):
-    if pd.isna(val):
-        return "Unknown"
-    val = str(val).strip().lower()
-    if val == "mobile":
-        return "Mobile"
-    if val == "international":
-        return "International"
-    if val == "other external":
-        return "Other External"
-    if val.startswith('+') or val.startswith('900448') or val.startswith('9.00'):
-        return "International"
-    elif re.fullmatch(r'\d{7}', val):
-        return "Other External"
-    elif re.match(r'^(7|8|9)\d{6,}', val):
-        return "Mobile"
-    elif val.startswith('9.08') or 'mobile' in val:
-        return "Mobile"
-    else:
-        return "Other External"
-
 # --- File uploader ---
-uploaded_files = st.file_uploader(
-    "Upload one or more HTML call report files:",
-    type="html",
-    accept_multiple_files=True
+uploaded_file = st.file_uploader(
+    "Upload an Excel call report file (Raw Data tab):",
+    type=["xls", "xlsx", "xlsm"],
+    accept_multiple_files=False
 )
 
-# --- Run analysis ---
+def extract_data_from_excel(file):
+    try:
+        df = pd.read_excel(file, sheet_name="Raw Data", engine="openpyxl")
+        # Clean up columns
+        df.columns = [str(col).strip() for col in df.columns]
+
+        # Only keep rows with at least one partition column filled
+        part_cols = [
+            "finalCalledPartyNumberPartition",
+            "originalCalledPartyNumberPartition",
+            "callingPartyNumberPartition"
+        ]
+        df["Call Category"] = df[part_cols].bfill(axis=1).iloc[:, 0]
+        df = df.dropna(subset=["Call Category"])
+        
+        # Map extensions to users
+        df["callingPartyNumber"] = df["callingPartyNumber"].astype(str).str.extract(r'(\d{4})')[0]
+        df = df[df["callingPartyNumber"].isin(valid_extensions)]
+        df["User"] = df["callingPartyNumber"].map(extension_name_map)
+        
+        # Parse start/end as datetime
+        df["Date"] = pd.to_datetime(df["dateTimeConnect"], unit='s', errors='coerce')
+        df["Month"] = df["Date"].dt.to_period('M')
+        
+        # Keep only relevant columns
+        keep_cols = [
+            "User", "callingPartyNumber", "dateTimeConnect", "dateTimeDisconnect", "Call Category", "Date", "Month"
+        ]
+        df = df[keep_cols].rename(columns={
+            "callingPartyNumber": "Extension",
+            "dateTimeConnect": "Connect Time (Unix)",
+            "dateTimeDisconnect": "Disconnect Time (Unix)"
+        })
+
+        return df
+    except Exception as e:
+        st.error(f"Error reading Excel: {e}")
+        return pd.DataFrame()
+
 if st.button("Analyze"):
-    if uploaded_files:
-        all_data = []
-        for uploaded_file in uploaded_files:
-            file_bytes = uploaded_file.read()
-            df = extract_csv_from_html_bytes(file_bytes)
-            if not df.empty:
-                df['source_file'] = uploaded_file.name
-                all_data.append(df)
-
-        if all_data:
-            df_all = pd.concat(all_data, ignore_index=True)
-            df_all.columns = [col.strip() for col in df_all.columns]
-
-            if 'callingPartyNumber' in df_all.columns:
-                df_all['callingPartyNumber'] = (
-                    df_all['callingPartyNumber']
-                    .astype(str)
-                    .str.strip()
-                    .str.extract(r'(\d{4})')[0]
-                )
-                df_all = df_all[df_all['callingPartyNumber'].isin(valid_extensions)]
-                df_all['callingPartyUnicodeLoginUserID'] = df_all['callingPartyNumber'].map(extension_name_map)
-
-            if 'dateTimeOrigination' in df_all.columns:
-                df_all['dateTimeOrigination'] = pd.to_datetime(
-                    df_all['dateTimeOrigination'], unit='s', errors='coerce')
-                df_all['Month'] = df_all['dateTimeOrigination'].dt.to_period('M')
-
-            pattern_col = 'finalCalledPartyPattern' if 'finalCalledPartyPattern' in df_all.columns else 'Dial Pattern'
-            if pattern_col in df_all.columns:
-                df_all['Call Category'] = df_all[pattern_col].apply(classify_from_dial_pattern)
-            else:
-                df_all['Call Category'] = "Unknown"
-
-            df_all = df_all.rename(columns={
-                'callingPartyUnicodeLoginUserID': 'User',
-                'callingPartyNumber': 'Extension',
-                'finalCalledPartyPattern': 'Dial Pattern',
-                'dateTimeOrigination': 'Date'
-            })
-
+    if uploaded_file is not None:
+        df_all = extract_data_from_excel(uploaded_file)
+        if not df_all.empty:
             st.session_state["df_all"] = df_all
         else:
             st.warning("No valid call data found.")
     else:
-        st.warning("Please upload at least one HTML file.")
+        st.warning("Please upload an Excel file.")
 
 # --- Display & Visuals ---
 if "df_all" in st.session_state:
@@ -135,9 +98,8 @@ if "df_all" in st.session_state:
 
     st.subheader("📋 Raw Call Records")
 
-    call_order = ['International', 'Other External', 'Mobile']
+    call_order = sorted(df_all['Call Category'].dropna().unique())
     user_ids = df_all['User'].dropna().unique().tolist()
-    call_types = df_all['Call Category'].dropna().unique().tolist()
     all_months = sorted(df_all['Month'].dropna().astype(str).unique().tolist())
 
     # --- Filters in one row ---
@@ -145,7 +107,7 @@ if "df_all" in st.session_state:
     with col1:
         selected_user = st.selectbox("Filter by User", ["All"] + sorted(user_ids))
     with col2:
-        selected_type = st.selectbox("Filter by Call Type", ["All"] + sorted(call_types))
+        selected_type = st.selectbox("Filter by Call Type", ["All"] + call_order)
     with col3:
         selected_month = st.selectbox("Filter by Month", ["All"] + all_months)
 
@@ -167,7 +129,6 @@ if "df_all" in st.session_state:
             df_filtered.groupby(['Month', 'Call Category'])
             .size()
             .unstack(fill_value=0)
-            .reindex(columns=call_order, fill_value=0)
             .sort_index()
         )
         col1, col2 = st.columns(2)
@@ -192,7 +153,6 @@ if "df_all" in st.session_state:
                 .size()
                 .unstack(fill_value=0)
                 .reindex(index=weekday_order)
-                .reindex(columns=call_order, fill_value=0)
             )
             fig3, ax3 = plt.subplots(figsize=(5, 3))
             weekly_grouped.plot(kind='bar', stacked=True, ax=ax3)
@@ -210,7 +170,7 @@ if "df_all" in st.session_state:
             df_all.groupby(['User', 'Call Category'])
             .size()
             .unstack(fill_value=0)
-            .reindex(index=all_usernames, columns=call_order, fill_value=0)
+            .reindex(index=all_usernames, fill_value=0)
         )
         grouped_users['Total'] = grouped_users.sum(axis=1)
         grouped_users = grouped_users.sort_values(by='Total', ascending=False).drop(columns='Total')
