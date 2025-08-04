@@ -36,20 +36,17 @@ extension_name_map = {
 }
 valid_extensions = set(extension_name_map.keys())
 
-# --- File uploader ---
-uploaded_file = st.file_uploader(
-    "Upload an Excel call report file (Raw Data tab):",
+uploaded_files = st.file_uploader(
+    "Upload one or more Excel call report files (Raw Data tab):",
     type=["xls", "xlsx", "xlsm"],
-    accept_multiple_files=False
+    accept_multiple_files=True
 )
 
 def extract_data_from_excel(file):
     try:
         df = pd.read_excel(file, sheet_name="Raw Data", engine="openpyxl")
-        # Clean up columns
         df.columns = [str(col).strip() for col in df.columns]
 
-        # Only keep rows with at least one partition column filled
         part_cols = [
             "finalCalledPartyNumberPartition",
             "originalCalledPartyNumberPartition",
@@ -57,19 +54,18 @@ def extract_data_from_excel(file):
         ]
         df["Call Category"] = df[part_cols].bfill(axis=1).iloc[:, 0]
         df = df.dropna(subset=["Call Category"])
-        
-        # Map extensions to users
+
         df["callingPartyNumber"] = df["callingPartyNumber"].astype(str).str.extract(r'(\d{4})')[0]
         df = df[df["callingPartyNumber"].isin(valid_extensions)]
         df["User"] = df["callingPartyNumber"].map(extension_name_map)
-        
-        # Parse start/end as datetime
+
         df["Date"] = pd.to_datetime(df["dateTimeConnect"], unit='s', errors='coerce')
         df["Month"] = df["Date"].dt.to_period('M')
-        
-        # Keep only relevant columns
+
+        df["source_file"] = getattr(file, 'name', None)  # Track source file if possible
+
         keep_cols = [
-            "User", "callingPartyNumber", "dateTimeConnect", "dateTimeDisconnect", "Call Category", "Date", "Month"
+            "User", "callingPartyNumber", "dateTimeConnect", "dateTimeDisconnect", "Call Category", "Date", "Month", "source_file"
         ]
         df = df[keep_cols].rename(columns={
             "callingPartyNumber": "Extension",
@@ -83,14 +79,19 @@ def extract_data_from_excel(file):
         return pd.DataFrame()
 
 if st.button("Analyze"):
-    if uploaded_file is not None:
-        df_all = extract_data_from_excel(uploaded_file)
-        if not df_all.empty:
+    if uploaded_files:
+        all_data = []
+        for file in uploaded_files:
+            df = extract_data_from_excel(file)
+            if not df.empty:
+                all_data.append(df)
+        if all_data:
+            df_all = pd.concat(all_data, ignore_index=True)
             st.session_state["df_all"] = df_all
         else:
-            st.warning("No valid call data found.")
+            st.warning("No valid call data found in uploaded files.")
     else:
-        st.warning("Please upload an Excel file.")
+        st.warning("Please upload at least one Excel file.")
 
 # --- Display & Visuals ---
 if "df_all" in st.session_state:
