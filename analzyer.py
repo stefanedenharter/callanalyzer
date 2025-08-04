@@ -195,12 +195,15 @@ if "df_all" in st.session_state:
             ax2.set_ylim(0, max(bottom_dur.max(), 1) * 1.1)
 
             if show_legend:
-                handles, labels = ax1.get_legend_handles_labels()
+                # Create proxy artists for all call categories with matching colors
+                colors = plt.cm.tab10.colors
+                handles = [plt.Rectangle((0,0),1,1, color=colors[i % 10], alpha=0.85) for i in range(len(call_order))]
+                labels = call_order
                 leg = ax1.legend(handles, labels, title="Call Category",
-                                 loc='upper left', fontsize='small',
-                                 frameon=True, fancybox=True,
-                                 facecolor='white', edgecolor='black',
-                                 framealpha=0.8)
+                                loc='upper left', fontsize='small',
+                                frameon=True, fancybox=True,
+                                facecolor='white', edgecolor='black',
+                                framealpha=0.8)
                 fig.subplots_adjust(right=0.85)
             else:
                 fig.subplots_adjust(right=0.95)
