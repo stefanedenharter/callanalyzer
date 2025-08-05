@@ -4,6 +4,23 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import pytz
+import os
+
+def read_run_count(filepath="run_count.txt"):
+    try:
+        with open(filepath, "r") as f:
+            return int(f.read())
+    except:
+        return 0
+
+def write_run_count(count, filepath="run_count.txt"):
+    with open(filepath, "w") as f:
+        f.write(str(count))
+
+# Read current count
+run_count = read_run_count()
+run_count += 1
+write_run_count(run_count)
 
 # --- UI setup ---
 st.set_page_config(page_title="Call Report Analyzer", layout="wide")
