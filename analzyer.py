@@ -24,7 +24,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 2.1.0 (Plotly + CET Timezone)</div>
+    <div class="version-badge">🔖 Version 2.1.0</div>
     """,
     unsafe_allow_html=True
 )
@@ -110,7 +110,7 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
     fig = go.Figure()
     px_colors = px.colors.qualitative.Plotly
 
-    # Add calls bars (left group)
+    # Add calls bars (left group) on primary y-axis (y)
     for i, call_cat in enumerate(call_order):
         fig.add_trace(go.Bar(
             name=f"{call_cat} (Calls)",
@@ -119,10 +119,10 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             offsetgroup=0,
             marker_color=px_colors[i % len(px_colors)],
             hovertemplate=f"Call Category: {call_cat}<br>Count: "+"%{y}<extra></extra>",
-            showlegend=True  # Show in legend
+            showlegend=True
         ))
 
-    # Add durations bars (right group)
+    # Add durations bars (right group) on secondary y-axis (y2)
     for i, call_cat in enumerate(call_order):
         fig.add_trace(go.Bar(
             name=f"{call_cat} (Duration min)",
@@ -132,21 +132,41 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             marker_color=px_colors[i % len(px_colors)],
             opacity=0.6,
             hovertemplate=f"Call Category: {call_cat}<br>Duration (min): "+"%{y:.1f}<extra></extra>",
-            showlegend=False  # Hide from legend
+            yaxis='y2',           # <-- assign to second y-axis here
+            showlegend=False
         ))
 
     fig.update_layout(
         barmode='stack',
         title=title,
         xaxis_title=xaxis_title,
-        yaxis_title="Number of Calls / Duration (min)",
-        #legend_title_text="Call Category",
-        legend=dict(traceorder="grouped", yanchor="top", y=0.99, xanchor="left", x=0.01),
-        margin=dict(l=40, r=40, t=60, b=40),
+        yaxis=dict(
+            title="# of Calls",
+            side='left',
+            showgrid=True,
+            zeroline=True
+        ),
+        yaxis2=dict(
+            title="Duration (min)",
+            overlaying='y',
+            side='right',
+            showgrid=False,
+            zeroline=False
+        ),
+        legend=dict(
+            title_text="",
+            traceorder="grouped",
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        ),
+        margin=dict(l=40, r=80, t=60, b=40),  # add extra right margin for second y-axis
         height=450,
         width=900
     )
     return fig
+
 
 if st.button("Analyze"):
     if uploaded_files:
