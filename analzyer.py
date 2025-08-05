@@ -53,7 +53,7 @@ def extract_data_from_excel(file):
         # Fix dateTimeConnect == 0
         if "dateTimeConnect" in df.columns and "dateTimeDisconnect" in df.columns:
             mask = df["dateTimeConnect"] == 0
-            df.loc[mask, "dateTimeConnect"] = df.loc[mask, "dateTimeDisconnect"] - 600
+            df.loc[mask, "dateTimeConnect"] = df.loc[mask, "dateTimeDisconnect"] - 300
 
         part_cols = [
             "finalCalledPartyNumberPartition",
