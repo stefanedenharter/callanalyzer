@@ -118,7 +118,8 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             y=counts[call_cat],
             offsetgroup=0,
             marker_color=px_colors[i % len(px_colors)],
-            hovertemplate=f"Call Category: {call_cat}<br>Count: "+"%{y}<extra></extra>"
+            hovertemplate=f"Call Category: {call_cat}<br>Count: "+"%{y}<extra></extra>",
+            showlegend=True  # Show in legend
         ))
 
     # Add durations bars (right group)
@@ -130,7 +131,8 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             offsetgroup=1,
             marker_color=px_colors[i % len(px_colors)],
             opacity=0.6,
-            hovertemplate=f"Call Category: {call_cat}<br>Duration (min): "+"%{y:.1f}<extra></extra>"
+            hovertemplate=f"Call Category: {call_cat}<br>Duration (min): "+"%{y:.1f}<extra></extra>",
+            showlegend=False  # Hide from legend
         ))
 
     fig.update_layout(
