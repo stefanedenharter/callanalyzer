@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import pytz
 
 # --- UI setup ---
 st.set_page_config(page_title="Call Report Analyzer", layout="wide")
@@ -241,6 +242,51 @@ if "df_all" in st.session_state:
         )
         st.pyplot(fig3)
 
-        # Move the dataframe to the bottom, after charts
+
+        cols_to_show = [
+            "User",
+            "Extension",
+            "Connect Time CET",
+            "Disconnect Time CET",
+            "Call Category",
+            "Date",
+            "Month",
+            "Weekday",
+            "Call Duration (s)",
+            "Call Duration (min)"
+        ]
+
+        cet = pytz.timezone("Europe/Berlin")
+
+        # Make a copy of df_filtered to avoid modifying original
+        df_display = df_filtered.copy()
+
+        # Convert Unix times to CET datetime strings
+        if "Connect Time (Unix)" in df_display.columns:
+            df_display["Connect Time CET"] = pd.to_datetime(df_display["Connect Time (Unix)"], unit='s', errors='coerce') \
+                .dt.tz_localize('UTC').dt.tz_convert(cet).dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        if "Disconnect Time (Unix)" in df_display.columns:
+            df_display["Disconnect Time CET"] = pd.to_datetime(df_display["Disconnect Time (Unix)"], unit='s', errors='coerce') \
+                .dt.tz_localize('UTC').dt.tz_convert(cet).dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Define columns to show (replace raw Unix columns with CET datetime)
+        cols_to_show = [
+            "User",
+            "Extension",
+            "Connect Time CET",
+            "Disconnect Time CET",
+            "Call Category",
+            "Date",
+            "Month",
+            "Weekday",
+            "Call Duration (s)",
+            "Call Duration (min)"
+        ]
+
+        # Select only columns that exist (safe)
+        df_display = df_display[[col for col in cols_to_show if col in df_display.columns]]
+
+        # Display the cleaned and timezone-adjusted dataframe
         st.subheader("📋 Raw Call Records (Filtered)")
-        st.dataframe(df_filtered)
+        st.dataframe(df_display)
