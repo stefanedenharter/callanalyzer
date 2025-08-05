@@ -226,16 +226,19 @@ if "df_all" in st.session_state:
 
         st.subheader("📊 Monthly: Call Count & Duration — Last 12 Months")
         fig_monthly = plotly_stacked_side_by_side(df_monthly, "Month", last_12_months_str, call_order,
+                                                    title="",
                                                     xaxis_title="Month")
         st.plotly_chart(fig_monthly, use_container_width=True)
 
         st.subheader("📊 Weekday: Call Count & Duration")
         fig_weekly = plotly_stacked_side_by_side(df_filtered, "Weekday", weekday_order, call_order,
+                                                 title="",
                                                  xaxis_title="Weekday")
         st.plotly_chart(fig_weekly, use_container_width=True)
 
         st.subheader("📊 By User: Call Count & Duratio")
         fig_user = plotly_stacked_side_by_side(df_filtered, "User", all_usernames, call_order,
+                                               title="",
                                                xaxis_title="User")
         st.plotly_chart(fig_user, use_container_width=True)
 
