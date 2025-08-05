@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
+import plotly.graph_objects as go
+import plotly.express as px
 import pytz
 
 # --- UI setup ---
@@ -24,7 +24,7 @@ st.markdown(
         z-index: 1000;
     }
     </style>
-    <div class="version-badge">🔖 Version 1.9.0</div>
+    <div class="version-badge">🔖 Version 2.1.0 (Plotly + CET Timezone)</div>
     """,
     unsafe_allow_html=True
 )
@@ -50,7 +50,7 @@ def extract_data_from_excel(file):
         df = pd.read_excel(file, sheet_name="Raw Data", engine="openpyxl")
         df.columns = [str(col).strip() for col in df.columns]
 
-        # --- Fix dateTimeConnect == 0 ---
+        # Fix dateTimeConnect == 0
         if "dateTimeConnect" in df.columns and "dateTimeDisconnect" in df.columns:
             mask = df["dateTimeConnect"] == 0
             df.loc[mask, "dateTimeConnect"] = df.loc[mask, "dateTimeDisconnect"] - 600
@@ -71,9 +71,8 @@ def extract_data_from_excel(file):
         df["Month"] = df["Date"].dt.to_period('M')
         df["Weekday"] = df["Date"].dt.day_name()
 
-        df["source_file"] = getattr(file, 'name', None)  # Track source file if possible
+        df["source_file"] = getattr(file, 'name', None)
 
-        # --- Calculate call duration in minutes ---
         df["Call Duration (s)"] = df["dateTimeDisconnect"] - df["dateTimeConnect"]
         df["Call Duration (min)"] = df["Call Duration (s)"] / 60
 
@@ -92,6 +91,61 @@ def extract_data_from_excel(file):
         st.error(f"Error reading Excel: {e}")
         return pd.DataFrame()
 
+def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, xaxis_title):
+    counts = (
+        df.groupby([group_col, 'Call Category'])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=group_order, fill_value=0)
+        .reindex(columns=call_order, fill_value=0)
+    )
+    durations = (
+        df.groupby([group_col, 'Call Category'])["Call Duration (min)"]
+        .sum()
+        .unstack(fill_value=0)
+        .reindex(index=group_order, fill_value=0)
+        .reindex(columns=call_order, fill_value=0)
+    )
+
+    fig = go.Figure()
+    px_colors = px.colors.qualitative.Plotly
+
+    # Add calls bars (left group)
+    for i, call_cat in enumerate(call_order):
+        fig.add_trace(go.Bar(
+            name=f"{call_cat} (Calls)",
+            x=[str(x) for x in group_order],
+            y=counts[call_cat],
+            offsetgroup=0,
+            marker_color=px_colors[i % len(px_colors)],
+            hovertemplate=f"Call Category: {call_cat}<br>Count: "+"%{y}<extra></extra>"
+        ))
+
+    # Add durations bars (right group)
+    for i, call_cat in enumerate(call_order):
+        fig.add_trace(go.Bar(
+            name=f"{call_cat} (Duration min)",
+            x=[str(x) for x in group_order],
+            y=durations[call_cat],
+            offsetgroup=1,
+            marker_color=px_colors[i % len(px_colors)],
+            opacity=0.6,
+            hovertemplate=f"Call Category: {call_cat}<br>Duration (min): "+"%{y:.1f}<extra></extra>"
+        ))
+
+    fig.update_layout(
+        barmode='stack',
+        title=title,
+        xaxis_title=xaxis_title,
+        yaxis_title="Number of Calls / Duration (min)",
+        legend_title_text="Call Category",
+        legend=dict(traceorder="grouped", yanchor="top", y=0.99, xanchor="left", x=0.01),
+        margin=dict(l=40, r=40, t=60, b=40),
+        height=450,
+        width=900
+    )
+    return fig
+
 if st.button("Analyze"):
     if uploaded_files:
         all_data = []
@@ -107,7 +161,6 @@ if st.button("Analyze"):
     else:
         st.warning("Please upload at least one Excel file.")
 
-# --- Display & Visuals ---
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
 
@@ -116,12 +169,10 @@ if "df_all" in st.session_state:
     all_usernames = list(extension_name_map.values())
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-    # Prepare last 12 months including current
     now = pd.Timestamp.now()
     last_12_months = pd.period_range(end=now.to_period('M'), periods=12).tolist()
     last_12_months_str = [str(m) for m in last_12_months]
 
-    # --- Multi-select Filters ---
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_users = st.multiselect(
@@ -132,8 +183,9 @@ if "df_all" in st.session_state:
             "Filter by Call Type", call_order, default=call_order
         )
     with col3:
+        all_months = sorted(set(last_12_months_str + [str(m) for m in df_all['Month'].unique()]))
         selected_months = st.multiselect(
-            "Filter by Month", sorted(set(last_12_months_str + [str(m) for m in df_all['Month'].unique()])), default=last_12_months_str
+            "Filter by Month", all_months, default=last_12_months_str
         )
 
     df_filtered = df_all.copy()
@@ -147,130 +199,40 @@ if "df_all" in st.session_state:
     if df_filtered.empty:
         st.info("No call records match the selected filters.")
     else:
-
-        def stacked_side_by_side_chart_dual_axis(groupby_col, group_order, x_label, show_legend=False):
-            grouped_calls = (
-                df_filtered.groupby([groupby_col, 'Call Category'])
-                .size()
-                .unstack(fill_value=0)
-                .reindex(index=group_order, fill_value=0)
-                .reindex(columns=call_order, fill_value=0)
-            )
-            grouped_duration = (
-                df_filtered.groupby([groupby_col, 'Call Category'])["Call Duration (min)"]
-                .sum()
-                .unstack(fill_value=0)
-                .reindex(index=group_order, fill_value=0)
-                .reindex(columns=call_order, fill_value=0)
-            )
-
-            x = np.arange(len(group_order))
-            width = 0.35
-            fig, ax1 = plt.subplots(figsize=(8, 4))
-            ax2 = ax1.twinx()
-            colors = plt.cm.tab10.colors
-
-            bottom_calls = np.zeros(len(group_order))
-            for i, call_type in enumerate(call_order):
-                ax1.bar(x - width/2, grouped_calls[call_type], width,
-                        label=call_type if i == 0 else "",
-                        bottom=bottom_calls, color=colors[i % 10], alpha=0.85)
-                bottom_calls += grouped_calls[call_type]
-
-            bottom_dur = np.zeros(len(group_order))
-            for i, call_type in enumerate(call_order):
-                ax2.bar(x + width/2, grouped_duration[call_type], width,
-                        label=call_type if i == 0 else "",
-                        bottom=bottom_dur, color=colors[i % 10], alpha=0.55,
-                        hatch='//', edgecolor='gray', linewidth=0.5)
-                bottom_dur += grouped_duration[call_type]
-
-            ax1.set_ylabel("Number of Calls")
-            ax2.set_ylabel("Duration in Minutes")
-            ax1.set_xlabel(x_label)
-            ax1.set_xticks(x)
-            ax1.set_xticklabels([str(g) for g in group_order], rotation=45, ha='right')
-            ax1.set_title(f"Number of Calls & Duration by {x_label}")
-
-            ax1.set_ylim(0, max(bottom_calls.max(), 1) * 1.1)
-            ax2.set_ylim(0, max(bottom_dur.max(), 1) * 1.1)
-
-            if show_legend:
-                # Create proxy artists for all call categories with matching colors
-                colors = plt.cm.tab10.colors
-                handles = [plt.Rectangle((0,0),1,1, color=colors[i % 10], alpha=0.85) for i in range(len(call_order))]
-                labels = call_order
-                leg = ax1.legend(handles, labels,
-                                loc='upper left', fontsize='small',
-                                frameon=True, fancybox=True,
-                                facecolor='white', edgecolor='black',
-                                framealpha=0.8)
-                fig.subplots_adjust(right=0.85)
-            else:
-                fig.subplots_adjust(right=0.95)
-
-            fig.tight_layout()
-            return fig
-
-        # Filter dataframe for last 12 months for monthly chart
-        df_filtered_monthly = df_filtered[df_filtered['Month'].astype(str).isin(last_12_months_str)]
+        # Monthly chart limited to last 12 months
+        df_monthly = df_filtered[df_filtered['Month'].astype(str).isin(last_12_months_str)]
 
         st.subheader("📊 Monthly: Calls & Duration (min) — Last 12 Months")
-        fig1 = stacked_side_by_side_chart_dual_axis(
-            groupby_col="Month",
-            group_order=last_12_months,
-            x_label="Month",
-            show_legend=True
-        )
-        st.pyplot(fig1)
+        fig_monthly = plotly_stacked_side_by_side(df_monthly, "Month", last_12_months_str, call_order,
+                                                  title="Number of Calls & Duration by Month",
+                                                  xaxis_title="Month")
+        st.plotly_chart(fig_monthly, use_container_width=True)
 
         st.subheader("📊 Weekly: Calls & Duration (min)")
-        fig2 = stacked_side_by_side_chart_dual_axis(
-            groupby_col="Weekday",
-            group_order=weekday_order,
-            x_label="Weekday",
-            show_legend=True
-        )
-        st.pyplot(fig2)
+        fig_weekly = plotly_stacked_side_by_side(df_filtered, "Weekday", weekday_order, call_order,
+                                                 title="Number of Calls & Duration by Weekday",
+                                                 xaxis_title="Weekday")
+        st.plotly_chart(fig_weekly, use_container_width=True)
 
         st.subheader("📊 By User: Calls & Duration (min)")
-        fig3 = stacked_side_by_side_chart_dual_axis(
-            groupby_col="User",
-            group_order=all_usernames,
-            x_label="User",
-            show_legend=True
-        )
-        st.pyplot(fig3)
+        fig_user = plotly_stacked_side_by_side(df_filtered, "User", all_usernames, call_order,
+                                               title="Number of Calls & Duration by User",
+                                               xaxis_title="User")
+        st.plotly_chart(fig_user, use_container_width=True)
 
-
-        cols_to_show = [
-            "User",
-            "Extension",
-            "Connect Time CET",
-            "Disconnect Time CET",
-            "Call Category",
-            "Date",
-            "Month",
-            "Weekday",
-            "Call Duration (s)",
-            "Call Duration (min)"
-        ]
-
+        # Prepare CET timezone columns for display
         cet = pytz.timezone("Europe/Berlin")
 
-        # Make a copy of df_filtered to avoid modifying original
         df_display = df_filtered.copy()
 
-        # Convert Unix times to CET datetime strings
         if "Connect Time (Unix)" in df_display.columns:
-            df_display["Connect Time CET"] = pd.to_datetime(df_display["Connect Time (Unix)"], unit='s', errors='coerce') \
+            df_display["Connect Time CET"] = pd.to_datetime(df_display["Connect Time (Unix)"], unit='s', errors='coerce')\
                 .dt.tz_localize('UTC').dt.tz_convert(cet).dt.strftime('%Y-%m-%d %H:%M:%S')
 
         if "Disconnect Time (Unix)" in df_display.columns:
-            df_display["Disconnect Time CET"] = pd.to_datetime(df_display["Disconnect Time (Unix)"], unit='s', errors='coerce') \
+            df_display["Disconnect Time CET"] = pd.to_datetime(df_display["Disconnect Time (Unix)"], unit='s', errors='coerce')\
                 .dt.tz_localize('UTC').dt.tz_convert(cet).dt.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Define columns to show (replace raw Unix columns with CET datetime)
         cols_to_show = [
             "User",
             "Extension",
@@ -283,10 +245,7 @@ if "df_all" in st.session_state:
             "Call Duration (s)",
             "Call Duration (min)"
         ]
-
-        # Select only columns that exist (safe)
         df_display = df_display[[col for col in cols_to_show if col in df_display.columns]]
 
-        # Display the cleaned and timezone-adjusted dataframe
         st.subheader("📋 Raw Call Records (Filtered)")
         st.dataframe(df_display)
