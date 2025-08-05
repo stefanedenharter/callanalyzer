@@ -113,7 +113,7 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
     # Add calls bars (left group) on primary y-axis (y)
     for i, call_cat in enumerate(call_order):
         fig.add_trace(go.Bar(
-            name=f"{call_cat} (Calls)",
+            name=f"{call_cat}",
             x=[str(x) for x in group_order],
             y=counts[call_cat],
             offsetgroup=0,
@@ -141,7 +141,7 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
         title=title,
         xaxis_title=xaxis_title,
         yaxis=dict(
-            title="# of Calls",
+            title="Call Count",
             side='left',
             showgrid=True,
             zeroline=True
@@ -224,21 +224,18 @@ if "df_all" in st.session_state:
         # Monthly chart limited to last 12 months
         df_monthly = df_filtered[df_filtered['Month'].astype(str).isin(last_12_months_str)]
 
-        st.subheader("📊 Monthly: Calls & Duration (min) — Last 12 Months")
+        st.subheader("📊 Monthly: Call Count & Duration — Last 12 Months")
         fig_monthly = plotly_stacked_side_by_side(df_monthly, "Month", last_12_months_str, call_order,
-                                                  title="Number of Calls & Duration by Month",
-                                                  xaxis_title="Month")
+                                                    xaxis_title="Month")
         st.plotly_chart(fig_monthly, use_container_width=True)
 
-        st.subheader("📊 Weekly: Calls & Duration (min)")
+        st.subheader("📊 Weekday: Call Count & Duration")
         fig_weekly = plotly_stacked_side_by_side(df_filtered, "Weekday", weekday_order, call_order,
-                                                 title="Number of Calls & Duration by Weekday",
                                                  xaxis_title="Weekday")
         st.plotly_chart(fig_weekly, use_container_width=True)
 
-        st.subheader("📊 By User: Calls & Duration (min)")
+        st.subheader("📊 By User: Call Count & Duratio")
         fig_user = plotly_stacked_side_by_side(df_filtered, "User", all_usernames, call_order,
-                                               title="Number of Calls & Duration by User",
                                                xaxis_title="User")
         st.plotly_chart(fig_user, use_container_width=True)
 
