@@ -140,7 +140,7 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
         title=title,
         xaxis_title=xaxis_title,
         yaxis_title="Number of Calls / Duration (min)",
-        legend_title_text="Call Category",
+        #legend_title_text="Call Category",
         legend=dict(traceorder="grouped", yanchor="top", y=0.99, xanchor="left", x=0.01),
         margin=dict(l=40, r=40, t=60, b=40),
         height=450,
