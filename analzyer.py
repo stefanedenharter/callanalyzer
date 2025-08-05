@@ -168,7 +168,7 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             tickmode='array',
             tickvals=[str(m) for m in group_order],
             ticktext=[str(m) for m in group_order],
-            tickangle=45,
+            tickangle=0,
             tickfont=dict(size=10)
         )
     )
