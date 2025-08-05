@@ -161,10 +161,18 @@ def plotly_stacked_side_by_side(df, group_col, group_order, call_order, title, x
             xanchor="left",
             x=0.01
         ),
-        margin=dict(l=40, r=80, t=60, b=40),  # add extra right margin for second y-axis
+        margin=dict(l=40, r=80, t=60, b=40),  # extra right margin for yaxis2
         height=450,
-        width=900
+        width=900,
+        xaxis=dict(
+            tickmode='array',
+            tickvals=[str(m) for m in group_order],
+            ticktext=[str(m) for m in group_order],
+            tickangle=45,
+            tickfont=dict(size=10)
+        )
     )
+
     return fig
 
 
